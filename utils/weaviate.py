@@ -2,7 +2,7 @@ import json
 from langchain.chains import ConversationalRetrievalChain
 
 
-def upload_doc(wv_client, doc, class_name):
+def wv_upload_doc(wv_client, doc, class_name):
     wv_client.batch.configure(batch_size=300)
     with wv_client.batch as batch:
         for i, d in enumerate(doc):
@@ -12,13 +12,13 @@ def upload_doc(wv_client, doc, class_name):
     print(f"File uploaded successfully")
 
 
-def create_class(wv_client, class_name):
+def wv_create_class(wv_client, class_name):
     class_obj = {
         "class": class_name,
-        "vectorizer": "text2vec-openai",
+        "vectorizer": "text2vec-cohere",
         "moduleConfig": {
-            "text2vec-openai": {},
-            "generative-openai": {},
+            "text2vec-cohere": {},
+            "generative-cohere": {},
         },
     }
 

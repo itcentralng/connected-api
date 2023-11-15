@@ -1,24 +1,18 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from fastapi import FastAPI, UploadFile
+from typing import Annotated
+from fastapi import FastAPI, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.llms import OpenAI
+from langchain.llms.cohere import Cohere
 from langchain.document_loaders import PyPDFLoader
 from dotenv import load_dotenv
 import shutil
 import weaviate
 from langchain.vectorstores import Weaviate
-from utils.weaviate import upload_doc, create_class
+from utils.weaviate import wv_upload_doc, wv_create_class
 from utils.weaviate import ask_question
-from utils.db import (
-    add_organization,
-    add_short_code,
-    delete_short_code,
-    add_file,
-    add_file_to_short_code,
-    get_short_codes,
-    get_organizations,
-)
+from utils import db
 
 load_dotenv()
 app = FastAPI()
@@ -40,9 +34,7 @@ wv_client = weaviate.Client(
     auth_client_secret=weaviate.AuthApiKey(
         api_key="ZkGGaTH93uXiu3W1cc6vhq63ZNxSUE46S5pQ"
     ),
-    additional_headers={
-        "X-OpenAI-Api-Key": "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"
-    },
+    additional_headers={"X-Cohere-Api-Key": "CovNrhHtqKqPcDoOIpMsQNdmLuOam5SEJtNokY3o"},
 )
 
 
@@ -62,59 +54,74 @@ class Organization(BaseModel):
 
 @app.get("/organization")
 def register_org():
-    results = get_organizations()
+    results = db.get_organizations()
     return {"organizations": results}
 
 
 @app.post("/organization/add")
 def register_org(organization: Organization):
-    added_organization = add_organization(organization)
-    return added_organization
+    added_organization = db.add_organization(organization)
+    return {"organization": added_organization}
 
 
-@app.post("/organization/{orgn_id}/uploadfile")
+@app.post("/organization/{organization}/uploadfile")
 async def create_upload_file(
-    orgn_id: int, file: UploadFile, weaviate_class: str, description: str = ""
+    file: UploadFile,
+    organization: str,
+    shortcode: Annotated[str, Form()],
+    description: Annotated[str, Form()] = "",
 ):
-    file_name = file.filename.split("/")[1]
-    loader = PyPDFLoader(f"data/{file_name}")
-    doc = loader.load()
-    try:
-        with open(f"uploads/{file_name}", "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except:
-        return {"message": f"file: {file_name} was not uploaded"}
-    finally:
-        file.file.close()
+    wv_client.schema.delete_all()
+    wv_class_name = f"{organization}_{file.filename.split('.')[0]}".replace(
+        " ", ""
+    ).replace("-", "")
+    classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
+    print(classes)
+    if wv_class_name.upper() not in classes:
+        wv_create_class(wv_client, wv_class_name)
+        try:
+            with open(f"uploads/{file.filename}", "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            loader = PyPDFLoader(f"uploads/{file.filename}")
+            doc = loader.load()
+            wv_upload_doc(wv_client, doc, wv_class_name)
 
-    schemas = [row["class"] for row in wv_client.schema.get()["classes"]]
-    if weaviate_class not in schemas:
-        create_class(wv_client, weaviate_class)
+            # DB Operations
+            added_file = db.add_file(
+                {
+                    "name": file.filename,
+                    "organization": organization,
+                    "weaviate_class": wv_class_name,
+                    "description": description,
+                }
+            )
+            added_shortcode = db.add_short_code(
+                {
+                    "shortcode": shortcode,
+                    "organization_id": added_file["organization_id"],
+                }
+            )
+            db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
+        except ValueError:
+            return {"message": f"file: {file.filename} was not uploaded to server"}
+        except AttributeError:
+            return {"message": f"File: {file.filename} was not uploaded to weaviate"}
+        finally:
+            file.file.close()
+    else:
+        return {"msg": "File already exists"}
+    return {"file": added_file}
 
-    try:
-        upload_file = upload_doc(wv_client, doc, weaviate_class)
-        print(upload_file)
-    except:
-        return {"message": f"Class: {weaviate_class} was not created"}
 
-    try:
-        added_file = add_file(
-            {
-                "name": file_name,
-                "organization_id": orgn_id,
-                "description": description,
-                "weaviate_id": weaviate_class,
-            }
-        )
-    except:
-        return {"message": f"file: {file_name} was not added to DB"}
-
-    return {"filename": added_file}
+# @app.post("organizations/{organization}/uploadfiles")
+# async def create_upload_files(orgn_id: int, files: list[UploadFile]):
+#     return {"filenames": [file.filename for file in files]}
 
 
-@app.post("organizations/{orgn_id}/uploadfiles")
-async def create_upload_files(orgn_id: int, files: list[UploadFile]):
-    return {"filenames": [file.filename for file in files]}
+@app.post("organizations/{organization}/deletefile")
+async def delete_files(organization: str, filename: str):
+    wv_client.schema.delete_class()
+    return {"message": f"{organization}_{filename.split('.')[0]}"}
 
 
 # SHORT CODES
@@ -125,30 +132,25 @@ class ShortCode(BaseModel):
 
 @app.post("/shortcode/add")
 def register_short_code(short_code: ShortCode):
-    added_short_code = add_short_code(short_code)
-    return added_short_code
+    added_short_code = db.add_short_code(short_code)
+    return {"shortcode": added_short_code}
 
 
 @app.get("/shortcode")
-async def get_short_code():
+async def get_short_codes():
     result = get_short_codes()
     return {"short_codes": result}
 
 
 @app.get("/shortcode/{id}/delete")
 def register_short_code(id):
-    removed_short_code = delete_short_code(id)
-    return removed_short_code
+    removed_short_code = db.delete_short_code(id)
+    # ALSO REMOVE FILE
+    return {"removed": removed_short_code}
 
 
 class FileInfo(BaseModel):
     file_id: int
-
-
-@app.post("/shortcode/{short_code}/addfile")
-async def create_upload_files(short_code: int, fileInfo: FileInfo):
-    result = add_file_to_short_code(short_code, fileInfo.file_id)
-    return {"file": result, "short_code": short_code}
 
 
 # SMS
@@ -167,18 +169,30 @@ class SMS(BaseModel):
 
 @app.post("/sms")
 async def receive_sms(sms: SMS):
+    db.init_db()
+    # db.insert_dummy_data()
     chat_history = []
-    class_name = "Maternal_health"
-    vectorstore = Weaviate(wv_client, class_name, "content")
-    answer = ask_question(vectorstore, OpenAI, sms.message, chat_history)
+    result = db.get_short_code(sms.receiver)
+    vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
+    answer = ask_question(vectorstore, Cohere, sms.message, chat_history)
     print(answer)
     return {"answer": answer}
 
 
-class MyFile(BaseModel):
-    file: dict
+class Message(BaseModel):
+    content: str
+    shortcode_id: int
+    organization_id: int
+
+
+@app.post("/message/add")
+def add_message(message: Message):
+    added_message = db.add_message(
+        message.content, message.organization_id, message.shortcode_id
+    )
+    return {"message": added_message}
 
 
 @app.post("/test")
-async def receive_sms(file: UploadFile):
-    return {"answer": file.filename}
+async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
+    return {"answer": file.filename, "orgn": organization}
