@@ -28,9 +28,7 @@ def wv_create_class(wv_client, class_name):
 
 def ask_question(vectorstore, llm, question, chat_history):
     qa = ConversationalRetrievalChain.from_llm(
-        llm(
-            temperature=0,
-        ),
+        llm,
         vectorstore.as_retriever(),
     )
 

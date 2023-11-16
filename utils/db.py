@@ -21,10 +21,10 @@ def clear_db():
     cursor = conn.cursor()
 
     try:
-        # cursor.execute("DROP TABLE IF EXISTS organizations")
-        # cursor.execute("DROP TABLE IF EXISTS files")
-        # cursor.execute("DROP TABLE IF EXISTS short_codes")
-        # cursor.execute("DROP TABLE IF EXISTS short_code_files")
+        cursor.execute("DROP TABLE IF EXISTS organizations")
+        cursor.execute("DROP TABLE IF EXISTS files")
+        cursor.execute("DROP TABLE IF EXISTS short_codes")
+        cursor.execute("DROP TABLE IF EXISTS short_code_files")
         cursor.execute("DROP TABLE IF EXISTS messages")
         conn.commit()
         print(f"DB cleared successfully")
@@ -36,48 +36,48 @@ def clear_db():
 
 
 def init_db():
-    clear_db()
     conn = create_connection(r"db\connected.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     # Clear and create the organizations table
+    clear_db()
     try:
-        # cursor.execute(
-        #     """CREATE TABLE organizations
-        #     (id INTEGER PRIMARY KEY,
-        #     name TEXT NOT NULL UNIQUE,
-        #     email TEXT NOT NULL UNIQUE,
-        #     password TEXT NOT NULL,
-        #     address TEXT NOT NULL,
-        #     description TEXT NOT NULL)"""
-        # )
-        # cursor.execute(
-        #     """CREATE TABLE files
-        #     (id INTEGER PRIMARY KEY,
-        #     name TEXT NOT NULL,
-        #     description TEXT NOT NULL,
-        #     organization_id INTEGER NOT NULL,
-        #     weaviate_class TEXT NOT NULL UNIQUE,
-        #     UNIQUE (name, organization_id),
-        #     FOREIGN KEY (organization_id) REFERENCES organizations(id))"""
-        # )
-        # cursor.execute(
-        #     """CREATE TABLE short_codes
-        #     (id INTEGER PRIMARY KEY,
-        #     short_code TEXT NOT NULL UNIQUE,
-        #     organization_id INTEGER NOT NULL,
-        #     UNIQUE (short_code, organization_id),
-        #     FOREIGN KEY (organization_id) REFERENCES organizations(id))"""
-        # )
-        # cursor.execute(
-        #     """CREATE TABLE short_code_files
-        #     (id INTEGER PRIMARY KEY,
-        #     short_code_id TEXT NOT NULL,
-        #     file_id INTEGER NOT NULL,
-        #     UNIQUE (short_code_id, file_id),
-        #     FOREIGN KEY (file_id) REFERENCES files(id),
-        #     FOREIGN KEY (short_code_id) REFERENCES short_codes(id))"""
-        # )
+        cursor.execute(
+            """CREATE TABLE organizations
+            (id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            address TEXT NOT NULL,
+            description TEXT NOT NULL)"""
+        )
+        cursor.execute(
+            """CREATE TABLE files
+            (id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            organization_id INTEGER NOT NULL,
+            weaviate_class TEXT NOT NULL UNIQUE,
+            UNIQUE (name, organization_id),
+            FOREIGN KEY (organization_id) REFERENCES organizations(id))"""
+        )
+        cursor.execute(
+            """CREATE TABLE short_codes
+            (id INTEGER PRIMARY KEY,
+            short_code TEXT NOT NULL UNIQUE,
+            organization_id INTEGER NOT NULL,
+            UNIQUE (short_code, organization_id),
+            FOREIGN KEY (organization_id) REFERENCES organizations(id))"""
+        )
+        cursor.execute(
+            """CREATE TABLE short_code_files
+            (id INTEGER PRIMARY KEY,
+            short_code_id TEXT NOT NULL,
+            file_id INTEGER NOT NULL,
+            UNIQUE (short_code_id, file_id),
+            FOREIGN KEY (file_id) REFERENCES files(id),
+            FOREIGN KEY (short_code_id) REFERENCES short_codes(id))"""
+        )
         cursor.execute(
             """CREATE TABLE messages
             (id INTEGER PRIMARY KEY,

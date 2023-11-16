@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Annotated
-from fastapi import FastAPI, UploadFile, Form
+from fastapi import FastAPI, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.llms import OpenAI
 from langchain.llms.cohere import Cohere
@@ -13,6 +13,9 @@ from langchain.vectorstores import Weaviate
 from utils.weaviate import wv_upload_doc, wv_create_class
 from utils.weaviate import ask_question
 from utils import db
+from utils.africastalking import AfricasTalking
+import urllib.parse
+import os
 
 load_dotenv()
 app = FastAPI()
@@ -30,11 +33,9 @@ app.add_middleware(
 )
 
 wv_client = weaviate.Client(
-    url="https://my-first-weaviate-cls-8ztyal2d.weaviate.network",
-    auth_client_secret=weaviate.AuthApiKey(
-        api_key="ZkGGaTH93uXiu3W1cc6vhq63ZNxSUE46S5pQ"
-    ),
-    additional_headers={"X-Cohere-Api-Key": "CovNrhHtqKqPcDoOIpMsQNdmLuOam5SEJtNokY3o"},
+    url=os.environ.get("WEAVIATE_URL"),
+    auth_client_secret=weaviate.AuthApiKey(api_key=os.environ.get("WEAVIATE_API_KEY")),
+    additional_headers={"X-Cohere-Api-Key": os.environ.get("COHERE_API_KEY")},
 )
 
 
@@ -113,11 +114,6 @@ async def create_upload_file(
     return {"file": added_file}
 
 
-# @app.post("organizations/{organization}/uploadfiles")
-# async def create_upload_files(orgn_id: int, files: list[UploadFile]):
-#     return {"filenames": [file.filename for file in files]}
-
-
 @app.post("organizations/{organization}/deletefile")
 async def delete_files(organization: str, filename: str):
     wv_client.schema.delete_class()
@@ -154,28 +150,22 @@ class FileInfo(BaseModel):
 
 
 # SMS
-class SMS(BaseModel):
-    id: str
-    receiver: str
-    sender: str
-    type: str
-    message: str
-    message_id: str
-    cost: str | None = None
-    received_at: str
-    status: str
-    channel: str | None = None
-
-
 @app.post("/sms")
-async def receive_sms(sms: SMS):
-    db.init_db()
-    # db.insert_dummy_data()
+async def receive_sms(request: Request):
+    decoded_string = await request.body()
+    parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
     chat_history = []
-    result = db.get_short_code(sms.receiver)
+    result = db.get_short_code(parsed_dict["to"][0])
     vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
-    answer = ask_question(vectorstore, Cohere, sms.message, chat_history)
+    answer = ask_question(
+        vectorstore,
+        Cohere(temperature=0),
+        parsed_dict["text"][0],
+        chat_history,
+    )
+    print(parsed_dict["text"][0])
     print(answer)
+    AfricasTalking().send(answer, [parsed_dict["from"][0]])
     return {"answer": answer}
 
 
