@@ -21,11 +21,15 @@ def clear_db():
     cursor = conn.cursor()
 
     try:
-        cursor.execute("DROP TABLE IF EXISTS organizations")
-        cursor.execute("DROP TABLE IF EXISTS files")
-        cursor.execute("DROP TABLE IF EXISTS short_codes")
-        cursor.execute("DROP TABLE IF EXISTS short_code_files")
-        cursor.execute("DROP TABLE IF EXISTS messages")
+        cursor.executescript(
+            """
+        DROP TABLE IF EXISTS organizations;
+        DROP TABLE IF EXISTS files;
+        DROP TABLE IF EXISTS short_codes;
+        DROP TABLE IF EXISTS short_code_files;
+        DROP TABLE IF EXISTS messages;
+        DROP TABLE IF EXISTS areas;"""
+        )
         conn.commit()
         print(f"DB cleared successfully")
     except Error as e:
@@ -42,49 +46,51 @@ def init_db():
     # Clear and create the organizations table
     clear_db()
     try:
-        cursor.execute(
+        cursor.executescript(
             """CREATE TABLE organizations
             (id INTEGER PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
             email TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
             address TEXT NOT NULL,
-            description TEXT NOT NULL)"""
-        )
-        cursor.execute(
-            """CREATE TABLE files
+            description TEXT NOT NULL);
+            
+            CREATE TABLE files
             (id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT NOT NULL,
             organization_id INTEGER NOT NULL,
             weaviate_class TEXT NOT NULL UNIQUE,
             UNIQUE (name, organization_id),
-            FOREIGN KEY (organization_id) REFERENCES organizations(id))"""
-        )
-        cursor.execute(
-            """CREATE TABLE short_codes
+            FOREIGN KEY (organization_id) REFERENCES organizations(id));
+            
+            CREATE TABLE short_codes
             (id INTEGER PRIMARY KEY,
             short_code TEXT NOT NULL UNIQUE,
             organization_id INTEGER NOT NULL,
             UNIQUE (short_code, organization_id),
-            FOREIGN KEY (organization_id) REFERENCES organizations(id))"""
-        )
-        cursor.execute(
-            """CREATE TABLE short_code_files
+            FOREIGN KEY (organization_id) REFERENCES organizations(id));
+            
+            CREATE TABLE short_code_files
             (id INTEGER PRIMARY KEY,
             short_code_id TEXT NOT NULL,
             file_id INTEGER NOT NULL,
             UNIQUE (short_code_id, file_id),
             FOREIGN KEY (file_id) REFERENCES files(id),
-            FOREIGN KEY (short_code_id) REFERENCES short_codes(id))"""
-        )
-        cursor.execute(
-            """CREATE TABLE messages
+            FOREIGN KEY (short_code_id) REFERENCES short_codes(id));
+            
+            CREATE TABLE messages
             (id INTEGER PRIMARY KEY,
             content TEXT NOT NULL,
             shortcode_id INT NOT NULL,
             organization_id INT NOT NULL,
-            FOREIGN KEY (organization_id) REFERENCES organizations(id))"""
+            areas TEXT NOT NULL,
+            FOREIGN KEY (organization_id) REFERENCES organizations(id));
+            
+            CREATE TABLE areas
+            (id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            numbers TEXT NOT NULL);"""
         )
         conn.commit()
         print(f"DB initialized successfully")
@@ -100,71 +106,39 @@ def insert_dummy_data():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
-        # Organizations
-        cursor.execute(
-            "INSERT INTO organizations (name, address, description, email,password) VALUES (?, ?, ?, ?, ?)",
+        cursor.executescript(
+            """INSERT INTO organizations (name, address, description, email,password) VALUES 
             (
-                "WHO",
-                "123 Main St.",
-                "We champion health and a better future for all. Dedicated to the well-being of all people and guided by science, the World Health Organization leads and champions global efforts to give everyone, everywhere an equal chance to live a healthy life.",
-                "info@acme.com",
-                "passowrd",
-            ),
-        )
-        cursor.execute(
-            "INSERT INTO organizations (name, address, description, email, password) VALUES (?, ?, ?, ?, ?)",
+                'WHO',
+                '123 Main St.',
+                'We champion health and a better future for all. Dedicated to the well-being of all people and guided by science, the World Health Organization leads and champions global efforts to give everyone, everywhere an equal chance to live a healthy life.',
+                'info@who.com',
+                'passowrd'),
             (
-                "Globex Corp",
-                "456 Elm St.",
-                "An imaginary company",
-                "info@globex.com",
-                "passowrd",
-            ),
+                'Globex Corp',
+                '456 Elm St.',
+                'An imaginary company',
+                'info@globex.com',
+                'passowrd');
+            """
         )
-
-        # Files
-        # cursor.execute(
-        #     "INSERT INTO files (name, description, organization_id, weaviate_class) VALUES (?, ?, ?, ?)",
-        #     (
-        #         "pragnancy_book.pdf",
-        #         "Improving maternal health awareness",
-        #         1,
-        #         "WHO_pragnancy_book",
-        #     ),
-        # )
-        # cursor.execute(
-        #     "INSERT INTO files (name, description, organization_id, weaviate_class) VALUES (?, ?, ?, ?)",
-        #     (
-        #         "malaria.pdf",
-        #         "Improving malaria disease awareness",
-        #         1,
-        #         "WHO_malaria",
-        #     ),
-        # )
-        # cursor.execute(
-        #     "INSERT INTO files (name, description, organization_id, weaviate_class) VALUES (?, ?, ?, ?)",
-        #     ("Globex.pdf", "customer care chatbot file", 2, "GlobexCorp_Globex"),
-        # )
-
-        # Short Codes
-        # cursor.execute(
-        #     "INSERT INTO short_codes (short_code,organization_id) VALUES (?,?)",
-        #     ("212", 1),
-        # )
-        # cursor.execute(
-        #     "INSERT INTO short_codes (short_code, organization_id) VALUES (?,?)",
-        #     ("309", 1),
-        # )
-
-        # Files Short Codes
-        # cursor.execute(
-        #     "INSERT INTO short_code_files (short_code_id,file_id) VALUES (?,?)",
-        #     (1, 1),
-        # )
-        # cursor.execute(
-        #     "INSERT INTO short_code_files (short_code_id,file_id) VALUES (?,?)",
-        #     (2, 2),
-        # )
+        cursor.executescript(
+            """INSERT INTO short_codes (short_code,organization_id) VALUES 
+            ("3525", 1);
+            INSERT INTO files (name, description, organization_id, weaviate_class) VALUES 
+            ("Pregnancy_Book_comp.pdf", "", 1, "WHO_Pregnancy_Book_comp");
+            INSERT INTO short_code_files (short_code_id, file_id) VALUES 
+            (1,1);
+            """,
+        )
+        cursor.executescript(
+            """
+            INSERT INTO areas (name, numbers) VALUES 
+            ('zaria - Kaduna state','+2347035251445,+2348012378000,+2347087654321'),
+            ('igabi - Kaduna state','+2347035251445,+2348012345111,+2347087654321'),
+            ('makarfi - Kaduna state','+23407035251445,+23408012345777,+2347087654321');
+            """
+        )
         conn.commit()
         print(f"DB Populated successfully")
     except Error as e:
@@ -195,6 +169,7 @@ def add_organization(organization):
     conn = create_connection(r"db\connected.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    error = None
     try:
         cursor.execute(
             "INSERT INTO organizations (name, email, password, address, description) VALUES (?, ?, ?, ?, ?)",
@@ -206,31 +181,35 @@ def add_organization(organization):
                 organization.description,
             ),
         )
-        last_row_id = cursor.lastrowid
+        conn.commit()
     except Error as e:
         print(e)
+        error = e
 
-    cursor.execute("SELECT * FROM organizations WHERE id = ?", (last_row_id,))
-    row = cursor.fetchone()
+    last_row_id = cursor.lastrowid
+    if last_row_id:
+        cursor.execute("SELECT * FROM organizations WHERE id = ?", (last_row_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return row
+    else:
+        conn.close()
+        return {"error": error}
 
-    conn.commit()
-    conn.close()
-    return row
 
-
-def get_organizations():
+def get_organization(email: str):
     conn = create_connection(r"db\connected.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT * FROM organizations")
+        cursor.execute("SELECT * FROM organizations WHERE email = ?", (email,))
         conn.commit()
     except Error as e:
         print(e)
-    results = cursor.fetchall()
+    result = cursor.fetchone()
     conn.close()
-    return results
+    return result
 
 
 # SHORT CODES
@@ -256,13 +235,16 @@ def add_short_code(shortcode):
     return row
 
 
-def get_short_codes():
+def get_short_codes(organization):
     conn = create_connection(r"db\connected.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT * FROM short_codes")
+        cursor.execute(
+            "SELECT * FROM short_codes JOIN organizations ON short_codes.organization_id = organizations.id WHERE organizations.name = ?",
+            (organization,),
+        )
         conn.commit()
     except Error as e:
         print(e)
@@ -361,21 +343,70 @@ def add_file_to_short_code(short_code, file_id):
     return row
 
 
-def add_message(message, organization_id, shortcode_id):
+def add_message(message, organization, shortcode, areas):
     conn = create_connection(r"db\connected.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-
+    init_db()
+    insert_dummy_data()
     try:
         cursor.execute(
-            "INSERT INTO messages (content, organization_id, shortcode_id) VALUES (?, ?, ?)",
-            (message, organization_id, shortcode_id),
+            "SELECT * FROM short_codes JOIN organizations ON short_codes.short_code = ?",
+            (shortcode,),
+        )
+        found_shortcode = cursor.fetchone()
+        cursor.execute(
+            "INSERT INTO messages (content, organization_id, shortcode_id, areas) VALUES (?, ?, ?, ?)",
+            (
+                message,
+                found_shortcode["organization_id"],
+                found_shortcode["id"],
+                "|".join(areas),
+            ),
         )
         conn.commit()
         last_row_id = cursor.lastrowid
-        cursor.execute("SELECT * FROM messages WHERE id = ?", (last_row_id,))
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM messages m
+            JOIN areas a ON m.areas LIKE '%' || a.name || '%'
+            WHERE m.id = ?""",
+            (last_row_id,),
+        )
+
     except Error as e:
         print(e)
-    row = cursor.fetchone()
+    row = cursor.fetchall()
     conn.close()
     return row
+
+
+def get_messages(organization):
+    conn = create_connection(r"db\connected.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT * FROM messages JOIN organizations ON messages.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.name = ?",
+            (organization,),
+        )
+    except Error as e:
+        print(e)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
+def get_areas():
+    conn = create_connection(r"db\connected.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM areas")
+    except Error as e:
+        print(e)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

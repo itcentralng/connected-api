@@ -1,9 +1,8 @@
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.llms import OpenAI
 from langchain.llms.cohere import Cohere
 from langchain.document_loaders import PyPDFLoader
 from dotenv import load_dotenv
@@ -22,6 +21,7 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:5173",
+    "*",
 ]
 
 app.add_middleware(
@@ -45,6 +45,21 @@ def read_root():
 
 
 # ORGANIZATIONS
+class AddOrganisation(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/organization")
+def register_org(organization: AddOrganisation):
+    result = db.get_organization(organization.email)
+    if result:
+        if result["password"] == organization.password:
+            return result
+    else:
+        return {"error": "Login unsuccessful"}
+
+
 class Organization(BaseModel):
     name: str
     email: str
@@ -53,16 +68,10 @@ class Organization(BaseModel):
     description: str
 
 
-@app.get("/organization")
-def register_org():
-    results = db.get_organizations()
-    return {"organizations": results}
-
-
-@app.post("/organization/add")
+@app.post("/register")
 def register_org(organization: Organization):
     added_organization = db.add_organization(organization)
-    return {"organization": added_organization}
+    return added_organization
 
 
 @app.post("/organization/{organization}/uploadfile")
@@ -72,7 +81,6 @@ async def create_upload_file(
     shortcode: Annotated[str, Form()],
     description: Annotated[str, Form()] = "",
 ):
-    wv_client.schema.delete_all()
     wv_class_name = f"{organization}_{file.filename.split('.')[0]}".replace(
         " ", ""
     ).replace("-", "")
@@ -111,7 +119,7 @@ async def create_upload_file(
             file.file.close()
     else:
         return {"msg": "File already exists"}
-    return {"file": added_file}
+    return added_file
 
 
 @app.post("organizations/{organization}/deletefile")
@@ -126,19 +134,19 @@ class ShortCode(BaseModel):
     organization_id: int
 
 
-@app.post("/shortcode/add")
+@app.post("/{organization}/shortcode/add")
 def register_short_code(short_code: ShortCode):
     added_short_code = db.add_short_code(short_code)
     return {"shortcode": added_short_code}
 
 
-@app.get("/shortcode")
-async def get_short_codes():
-    result = get_short_codes()
+@app.get("/{organization}/shortcodes")
+async def get_short_codes(organization: str):
+    result = db.get_short_codes(organization)
     return {"short_codes": result}
 
 
-@app.get("/shortcode/{id}/delete")
+@app.get("/{organization}/shortcode/{id}/delete")
 def register_short_code(id):
     removed_short_code = db.delete_short_code(id)
     # ALSO REMOVE FILE
@@ -171,16 +179,33 @@ async def receive_sms(request: Request):
 
 class Message(BaseModel):
     content: str
-    shortcode_id: int
-    organization_id: int
+    shortcode: str
+    areas: list[str]
 
 
-@app.post("/message/add")
-def add_message(message: Message):
+@app.post("/{organization}/message/add")
+def add_message(message: Message, organization: str):
     added_message = db.add_message(
-        message.content, message.organization_id, message.shortcode_id
+        message.content, organization, message.shortcode, message.areas
     )
-    return {"message": added_message}
+    numbers = [row["numbers"].split(",") for row in added_message]
+    AfricasTalking().send(message.content, numbers[0])
+    return {"msg": "successfully sent messages"}
+
+
+@app.get("/{organization}/messages/")
+def get_messages(organization: str):
+    if organization != "":
+        results = db.get_messages(organization)
+        return results
+    else:
+        return {"msg": "Organization not provided"}
+
+
+@app.get("/areas")
+def get_areas():
+    areas = db.get_areas()
+    return areas
 
 
 @app.post("/test")
