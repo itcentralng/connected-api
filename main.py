@@ -22,6 +22,7 @@ origins = [
     "http://localhost",
     "http://localhost:5173",
     "*",
+    "https://connected-cohere-frontend.onrender.com",
 ]
 
 app.add_middleware(
