@@ -211,3 +211,9 @@ def get_areas():
 @app.post("/test")
 async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
     return {"answer": file.filename, "orgn": organization}
+
+
+@app.get("/initdb")
+async def init_db():
+    db.init_db()
+    db.insert_dummy_data()
