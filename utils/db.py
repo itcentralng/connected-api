@@ -113,7 +113,7 @@ def insert_dummy_data():
                 '123 Main St.',
                 'We champion health and a better future for all. Dedicated to the well-being of all people and guided by science, the World Health Organization leads and champions global efforts to give everyone, everywhere an equal chance to live a healthy life.',
                 'info@who.com',
-                'passowrd'),
+                'password'),
             (
                 'Globex Corp',
                 '456 Elm St.',
