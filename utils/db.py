@@ -193,7 +193,7 @@ def get_organization(email: str):
     except Error as e:
         print(e)
     result = cursor.fetchone()
-    print(f'{result["name"]}')
+    print(f"Organization with email {email}")
     conn.close()
     return result
 
