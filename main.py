@@ -56,7 +56,6 @@ def register_org(organization: AddOrganisation):
     if result:
         if result["password"] == organization.password:
             return result
-    else:
         return {"error": "Login unsuccessful"}
 
 
