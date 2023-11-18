@@ -217,3 +217,4 @@ async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
 async def init_db():
     db.init_db()
     db.insert_dummy_data()
+    return {"msg": "DB Initialization successfull"}
