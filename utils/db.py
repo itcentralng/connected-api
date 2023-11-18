@@ -236,7 +236,7 @@ def get_short_codes(organization):
     except Error as e:
         print(e)
     results = cursor.fetchall()
-    print(f'{row["name"]}')
+    print(results)
     conn.close()
     return results
 
