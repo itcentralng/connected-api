@@ -148,22 +148,6 @@ def insert_dummy_data():
     conn.close()
 
 
-def run_query(query):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    results = []
-    try:
-        cursor.execute(query)
-        results = cursor.fetchall()
-    except Error as e:
-        print(e)
-
-    conn.commit()
-    conn.close()
-    return results
-
-
 # ORGANIZATIONS
 def add_organization(organization):
     conn = create_connection(r"db\connected.db")
@@ -190,6 +174,7 @@ def add_organization(organization):
     if last_row_id:
         cursor.execute("SELECT * FROM organizations WHERE id = ?", (last_row_id,))
         row = cursor.fetchone()
+        print(f'{row["name"]}')
         conn.close()
         return row
     else:
@@ -208,6 +193,7 @@ def get_organization(email: str):
     except Error as e:
         print(e)
     result = cursor.fetchone()
+    print(f'{result["name"]}')
     conn.close()
     return result
 
@@ -229,6 +215,7 @@ def add_short_code(shortcode):
     last_row_id = cursor.lastrowid
     cursor.execute("SELECT * FROM short_codes WHERE id = ?", (last_row_id,))
     row = cursor.fetchone()
+    print(row["short_code"])
 
     conn.commit()
     conn.close()
@@ -249,6 +236,7 @@ def get_short_codes(organization):
     except Error as e:
         print(e)
     results = cursor.fetchall()
+    print(f'{row["name"]}')
     conn.close()
     return results
 
@@ -267,6 +255,7 @@ def get_short_code(shortcode):
     except Error as e:
         print(e)
     result = cursor.fetchone()
+    print(f'{result["short_code"]}')
     conn.close()
     return result
 
@@ -311,6 +300,7 @@ def add_file(file):
     except Error as e:
         print(e)
     row = cursor.fetchone()
+    print(f"Added file {row['name']}")
 
     conn.commit()
     conn.close()
@@ -336,6 +326,7 @@ def add_file_to_short_code(short_code, file_id):
             cursor.execute(
                 "SELECT * FROM short_code_files WHERE id = ?", (last_row_id,)
             )
+            print(f'{found_short_code["name"]}')
     except Error as e:
         print(e)
     row = cursor.fetchone()
@@ -347,8 +338,6 @@ def add_message(message, organization, shortcode, areas):
     conn = create_connection(r"db\connected.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    init_db()
-    insert_dummy_data()
     try:
         cursor.execute(
             "SELECT * FROM short_codes JOIN organizations ON short_codes.short_code = ?",
@@ -366,7 +355,7 @@ def add_message(message, organization, shortcode, areas):
         )
         conn.commit()
         last_row_id = cursor.lastrowid
-
+        print(f"message: {message}")
         cursor.execute(
             """
             SELECT *
@@ -395,6 +384,7 @@ def get_messages(organization):
     except Error as e:
         print(e)
     rows = cursor.fetchall()
+    print(rows)
     conn.close()
     return rows
 
@@ -408,5 +398,6 @@ def get_areas():
     except Error as e:
         print(e)
     rows = cursor.fetchall()
+    print(rows)
     conn.close()
     return rows

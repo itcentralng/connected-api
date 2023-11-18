@@ -134,15 +134,17 @@ class ShortCode(BaseModel):
 
 
 @app.post("/{organization}/shortcode/add")
-def register_short_code(short_code: ShortCode):
+def register_short_code(short_code: ShortCode, organization: str):
     added_short_code = db.add_short_code(short_code)
+    print(f"Added {add_message} for {organization}")
     return {"shortcode": added_short_code}
 
 
 @app.get("/{organization}/shortcodes")
 async def get_short_codes(organization: str):
-    result = db.get_short_codes(organization)
-    return {"short_codes": result}
+    results = db.get_short_codes(organization)
+    print(results)
+    return {"short_codes": results}
 
 
 @app.get("/{organization}/shortcode/{id}/delete")
@@ -188,6 +190,8 @@ def add_message(message: Message, organization: str):
         message.content, organization, message.shortcode, message.areas
     )
     numbers = [row["numbers"].split(",") for row in added_message]
+    print(numbers)
+    print(add_message)
     AfricasTalking().send(message.content, numbers[0])
     return {"msg": "successfully sent messages"}
 
@@ -196,14 +200,17 @@ def add_message(message: Message, organization: str):
 def get_messages(organization: str):
     if organization != "":
         results = db.get_messages(organization)
+        print(results)
         return results
     else:
+        print("Organization not provided")
         return {"msg": "Organization not provided"}
 
 
 @app.get("/areas")
 def get_areas():
     areas = db.get_areas()
+    print(areas)
     return areas
 
 
@@ -213,7 +220,10 @@ async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
 
 
 @app.get("/initdb")
-async def init_db():
+async def init_db(all: bool = False):
     db.init_db()
     db.insert_dummy_data()
+    if all:
+        wv_client.schema.delete_all()
+        print("Cleared Weaviate DB")
     return {"msg": "DB Initialization successfull"}
