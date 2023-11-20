@@ -414,7 +414,7 @@ def get_files(organization):
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "SELECT * FROM files JOIN organizations ON organizations.id = files.organization_id WHERE organizations.name = ?",
+            "SELECT files.name, short_codes.short_code FROM short_code_files JOIN organizations,files,short_codes ON organizations.id = files.organization_id WHERE organizations.name = ?",
             (organization,),
         )
     except Error as e:
