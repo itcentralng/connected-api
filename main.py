@@ -138,6 +138,13 @@ async def delete_files(organization: str, filename: str):
     return {"message": f"{organization}_{filename.split('.')[0]}"}
 
 
+@app.get("/{organization}/files")
+async def get_short_codes(organization: str):
+    results = db.get_files(organization)
+    print(results)
+    return results
+
+
 # SHORT CODES
 class ShortCode(BaseModel):
     short_code: int
@@ -249,6 +256,5 @@ async def init_db(all: bool = False):
     db.insert_dummy_data()
     if all:
         wv_client.schema.delete_all()
-        # wv_client.schema.delete_class("WHO_Pregnancy_Book_comp")
         print("Cleared Weaviate DB")
     return {"msg": "DB Initialization successfull"}

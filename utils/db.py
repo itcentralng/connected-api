@@ -406,3 +406,20 @@ def get_areas():
     print(rows)
     conn.close()
     return rows
+
+
+def get_files(organization):
+    conn = create_connection(r"db\connected.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT * FROM files JOIN organizations ON organizations.id = files.organization_id WHERE organizations.name = ?",
+            (organization,),
+        )
+    except Error as e:
+        print(e)
+    rows = cursor.fetchall()
+    print(rows)
+    conn.close()
+    return rows
