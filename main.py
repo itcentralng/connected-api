@@ -90,6 +90,7 @@ async def create_upload_file(
         wv_create_class(wv_client, wv_class_name)
         try:
             with open(f"uploads/{file.filename}", "wb") as buffer:
+                print(file.filename)
                 shutil.copyfileobj(file.file, buffer)
             loader = PyPDFLoader(f"uploads/{file.filename}")
             doc = loader.load()
