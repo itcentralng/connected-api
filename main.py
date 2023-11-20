@@ -91,6 +91,24 @@ async def create_upload_file(
     classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
     print(classes)
     print(file.filename)
+    # DB Operations
+    added_file = db.add_file(
+        {
+            "name": file.filename,
+            "organization": organization,
+            "weaviate_class": wv_class_name,
+            "description": description,
+        }
+    )
+    if added_file:
+        added_shortcode = db.add_short_code(
+            {
+                "shortcode": shortcode,
+                "organization_id": added_file["organization_id"],
+            }
+        )
+        print(added_file["weaviate_class"])
+        db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
         try:
@@ -103,24 +121,6 @@ async def create_upload_file(
             doc = loader.load()
             wv_upload_doc(wv_client, doc, wv_class_name)
 
-            # DB Operations
-            added_file = db.add_file(
-                {
-                    "name": file.filename,
-                    "organization": organization,
-                    "weaviate_class": wv_class_name,
-                    "description": description,
-                }
-            )
-            if added_file:
-                added_shortcode = db.add_short_code(
-                    {
-                        "shortcode": shortcode,
-                        "organization_id": added_file["organization_id"],
-                    }
-                )
-                print(added_file["weaviate_class"])
-                db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
         except ValueError:
             return {"message": f"file: {file.filename} was not uploaded to server"}
         except AttributeError:
