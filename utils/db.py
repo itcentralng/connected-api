@@ -255,7 +255,6 @@ def get_short_code(shortcode):
     except Error as e:
         print(e)
     result = cursor.fetchone()
-    print(f'{result["short_code"]}')
     conn.close()
     return result
 
