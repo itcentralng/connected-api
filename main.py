@@ -16,6 +16,10 @@ from utils.africastalking import AfricasTalking
 import urllib.parse
 import os
 
+# initialize database on first run
+db.init_db()
+db.insert_dummy_data()
+
 load_dotenv()
 app = FastAPI()
 origins = [
