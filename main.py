@@ -168,19 +168,27 @@ async def receive_sms(request: Request):
     parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
     chat_history = []
     result = db.get_short_code(parsed_dict["to"][0])
-    vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
-    answer = ask_question(
-        vectorstore,
-        Cohere(temperature=0),
-        parsed_dict["text"][0],
-        chat_history,
-    )
-    classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
-    print(classes)
-    print(parsed_dict)
-    print(answer)
-    AfricasTalking().send(parsed_dict["to"][0], answer, [parsed_dict["from"][0]])
-    return {"answer": answer}
+    if result and parsed_dict["text"][0]:
+        vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
+        answer = ask_question(
+            vectorstore,
+            Cohere(temperature=0),
+            parsed_dict["text"][0],
+            chat_history,
+        )
+        classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
+        print(classes)
+        print(parsed_dict)
+        print(answer)
+        AfricasTalking().send(parsed_dict["to"][0], answer, [parsed_dict["from"][0]])
+        return {"answer": answer}
+    else:
+        AfricasTalking().send(
+            parsed_dict["to"][0],
+            "Sorry we are having a technical issue. Try again later",
+            [parsed_dict["from"][0]],
+        )
+        print("Error: Short code does'nt exist")
 
 
 class Message(BaseModel):
@@ -195,9 +203,12 @@ def add_message(message: Message, organization: str):
         message.content, organization, message.shortcode, message.areas
     )
     numbers = [row["numbers"].split(",") for row in added_message]
-    print(numbers[0])
+    all_numbers = []
+    for nums in numbers:
+        all_numbers = [*all_numbers, *nums]
+    print(all_numbers)
     print(message.content)
-    AfricasTalking().send(message.shortcode, message.content, numbers[0])
+    AfricasTalking().send(message.shortcode, message.content, all_numbers)
     return {"msg": "successfully sent messages"}
 
 
