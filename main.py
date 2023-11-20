@@ -104,13 +104,15 @@ async def create_upload_file(
                     "description": description,
                 }
             )
-            added_shortcode = db.add_short_code(
-                {
-                    "shortcode": shortcode,
-                    "organization_id": added_file["organization_id"],
-                }
-            )
-            db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
+            if added_file:
+                added_shortcode = db.add_short_code(
+                    {
+                        "shortcode": shortcode,
+                        "organization_id": added_file["organization_id"],
+                    }
+                )
+                print(added_file["weaviate_class"])
+                db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
         except ValueError:
             return {"message": f"file: {file.filename} was not uploaded to server"}
         except AttributeError:
@@ -173,9 +175,11 @@ async def receive_sms(request: Request):
         parsed_dict["text"][0],
         chat_history,
     )
-    print(parsed_dict["text"][0])
+    classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
+    print(classes)
+    print(parsed_dict)
     print(answer)
-    AfricasTalking().send(answer, [parsed_dict["from"][0]])
+    AfricasTalking().send(parsed_dict["to"][0], answer, [parsed_dict["from"][0]])
     return {"answer": answer}
 
 
@@ -191,9 +195,9 @@ def add_message(message: Message, organization: str):
         message.content, organization, message.shortcode, message.areas
     )
     numbers = [row["numbers"].split(",") for row in added_message]
-    print(numbers)
-    print(add_message)
-    AfricasTalking().send(message.content, numbers[0])
+    print(numbers[0])
+    print(message.content)
+    AfricasTalking().send(message.shortcode, message.content, numbers[0])
     return {"msg": "successfully sent messages"}
 
 
@@ -226,5 +230,6 @@ async def init_db(all: bool = False):
     db.insert_dummy_data()
     if all:
         wv_client.schema.delete_all()
+        # wv_client.schema.delete_class("WHO_Pregnancy_Book_comp")
         print("Cleared Weaviate DB")
     return {"msg": "DB Initialization successfull"}

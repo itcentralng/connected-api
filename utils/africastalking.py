@@ -13,8 +13,7 @@ africastalking.initialize(
 class AfricasTalking:
     sms = africastalking.SMS
 
-    def send(self, message, recipients):
-        sender = os.environ.get("AFRICASTALKING_SHORTCODE")
+    def send(self, sender, message, recipients):
         try:
             response = self.sms.send(message, recipients, sender)
             print(response)

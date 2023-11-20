@@ -248,7 +248,13 @@ def get_short_code(shortcode):
 
     try:
         cursor.execute(
-            "SELECT * FROM short_codes JOIN files ON short_codes.organization_id = files.organization_id WHERE short_code = ?",
+            """
+            SELECT *
+            FROM short_code_files scf
+            JOIN short_codes as sc, files as f
+            ON scf.id = sc.id
+            WHERE sc.short_code = ?
+            AND f.id = scf.file_id;""",
             (shortcode,),
         )
         conn.commit()
@@ -299,7 +305,7 @@ def add_file(file):
     except Error as e:
         print(e)
     row = cursor.fetchone()
-    print(f"Added file {row['name']}")
+    print(f"Added file {file['name']}")
 
     conn.commit()
     conn.close()
@@ -325,7 +331,7 @@ def add_file_to_short_code(short_code, file_id):
             cursor.execute(
                 "SELECT * FROM short_code_files WHERE id = ?", (last_row_id,)
             )
-            print(f'{found_short_code["name"]}')
+            print(f"{short_code}")
     except Error as e:
         print(e)
     row = cursor.fetchone()
