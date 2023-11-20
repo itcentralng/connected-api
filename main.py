@@ -90,13 +90,13 @@ async def create_upload_file(
     ).replace("-", "")
     classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
     print(classes)
+    print(file.filename)
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
         try:
             if not os.path.exists("uploads"):
                 os.mkdir("uploads")
 
-            print(file.filename)
             with open(f"uploads/{file.filename}", "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             loader = PyPDFLoader(f"uploads/{file.filename}")
