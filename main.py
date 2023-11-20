@@ -93,13 +93,13 @@ async def create_upload_file(
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
         try:
-            if not os.path.exists("/uploads"):
-                os.mkdir("/uploads")
+            if not os.path.exists("uploads"):
+                os.mkdir("uploads")
 
             print(file.filename)
             with open(f"uploads/{file.filename}", "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
-            loader = PyPDFLoader(f"/uploads/{file.filename}")
+            loader = PyPDFLoader(f"uploads/{file.filename}")
             doc = loader.load()
             wv_upload_doc(wv_client, doc, wv_class_name)
 
