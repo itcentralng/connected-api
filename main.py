@@ -90,37 +90,37 @@ async def create_upload_file(
     ).replace("-", "")
     classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
     print(classes)
+    print(file.filename)
+    # DB Operations
+    added_file = db.add_file(
+        {
+            "name": file.filename,
+            "organization": organization,
+            "weaviate_class": wv_class_name,
+            "description": description,
+        }
+    )
+    if added_file:
+        added_shortcode = db.add_short_code(
+            {
+                "shortcode": shortcode,
+                "organization_id": added_file["organization_id"],
+            }
+        )
+        print(added_file["weaviate_class"])
+        db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
         try:
             if not os.path.exists("uploads"):
                 os.mkdir("uploads")
 
-            print(file.filename)
             with open(f"uploads/{file.filename}", "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             loader = PyPDFLoader(f"uploads/{file.filename}")
             doc = loader.load()
             wv_upload_doc(wv_client, doc, wv_class_name)
 
-            # DB Operations
-            added_file = db.add_file(
-                {
-                    "name": file.filename,
-                    "organization": organization,
-                    "weaviate_class": wv_class_name,
-                    "description": description,
-                }
-            )
-            if added_file:
-                added_shortcode = db.add_short_code(
-                    {
-                        "shortcode": shortcode,
-                        "organization_id": added_file["organization_id"],
-                    }
-                )
-                print(added_file["weaviate_class"])
-                db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
         except ValueError:
             return {"message": f"file: {file.filename} was not uploaded to server"}
         except AttributeError:
@@ -136,6 +136,13 @@ async def create_upload_file(
 async def delete_files(organization: str, filename: str):
     wv_client.schema.delete_class()
     return {"message": f"{organization}_{filename.split('.')[0]}"}
+
+
+@app.get("/{organization}/files")
+async def get_short_codes(organization: str):
+    results = db.get_files(organization)
+    print(results)
+    return results
 
 
 # SHORT CODES
@@ -249,6 +256,5 @@ async def init_db(all: bool = False):
     db.insert_dummy_data()
     if all:
         wv_client.schema.delete_all()
-        # wv_client.schema.delete_class("WHO_Pregnancy_Book_comp")
         print("Cleared Weaviate DB")
     return {"msg": "DB Initialization successfull"}

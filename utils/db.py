@@ -123,6 +123,15 @@ def insert_dummy_data():
             """
         )
         cursor.executescript(
+            """INSERT INTO short_codes (short_code,organization_id) VALUES 
+            ("3525", 1);
+            INSERT INTO files (name, description, organization_id, weaviate_class) VALUES 
+            ("Pregnancy_Book_comp.pdf", "", 1, "WHO_Pregnancy_Book_comp");
+            INSERT INTO short_code_files (short_code_id, file_id) VALUES 
+            (1,1);
+            """,
+        )
+        cursor.executescript(
             """
             INSERT INTO areas (name, numbers) VALUES 
             ('zaria - Kaduna state','+2347035251445,+2348012378000,+2347087654321'),
@@ -391,6 +400,23 @@ def get_areas():
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT * FROM areas")
+    except Error as e:
+        print(e)
+    rows = cursor.fetchall()
+    print(rows)
+    conn.close()
+    return rows
+
+
+def get_files(organization):
+    conn = create_connection(r"db\connected.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT files.name, short_codes.short_code FROM short_code_files JOIN organizations,files,short_codes ON organizations.id = files.organization_id WHERE organizations.name = ?",
+            (organization,),
+        )
     except Error as e:
         print(e)
     rows = cursor.fetchall()
