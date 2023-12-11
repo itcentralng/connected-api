@@ -157,6 +157,21 @@ def get_shortcodes(organization):
 def get_shortcode(shortcode):
     try:
         shortcode = (
+            supabase.table("shortcodes")
+            .select("*")
+            .eq("shortcode", shortcode)
+            .single()
+            .execute()
+        )
+        return shortcode
+    except Exception as error:
+        print(f"Error: {error}")
+        return {"error": error}
+
+
+def get_shortcode_files(shortcode):
+    try:
+        shortcode = (
             supabase.table("files_shortcodes")
             .select("*, shortcodes(*), files(*)")
             .eq("shortcodes.shortcode", shortcode)

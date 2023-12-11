@@ -193,7 +193,7 @@ async def receive_sms(request: Request):
     chat_history = []
     decoded_string = await request.body()
     parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
-    result = db.get_shortcode(parsed_dict["to"][0])
+    result = db.get_shortcode_files(parsed_dict["to"][0])
     print(f"Message received for -> {result.data['shortcodes']['shortcode']}")
     if result.data and parsed_dict["text"][0]:
         vectorstore = Weaviate(
