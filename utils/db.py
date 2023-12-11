@@ -1,425 +1,251 @@
-# WILL USE AN ORM INSTEAD
-import sqlite3
-from sqlite3 import Error
+import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
+from postgrest.exceptions import APIError
+import bcrypt
+import base64
 
 
-def create_connection(db_file):
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file)
-    except Error as e:
-        print(e)
-    finally:
-        if conn:
-            return conn
+load_dotenv()
+
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 
 
-# SETUP DB
-def clear_db():
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+def hash_password(password):
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password.encode("utf-8"), salt)
 
-    try:
-        cursor.executescript(
-            """
-        DROP TABLE IF EXISTS organizations;
-        DROP TABLE IF EXISTS files;
-        DROP TABLE IF EXISTS short_codes;
-        DROP TABLE IF EXISTS short_code_files;
-        DROP TABLE IF EXISTS messages;
-        DROP TABLE IF EXISTS areas;"""
-        )
-        conn.commit()
-        print(f"DB cleared successfully")
-    except Error as e:
-        print(e)
-
-    conn.commit()
-    conn.close()
+    return base64.b64encode(hashed_password).decode("utf-8")
 
 
-def init_db():
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    # Clear and create the organizations table
-    clear_db()
-    try:
-        cursor.executescript(
-            """CREATE TABLE organizations
-            (id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            email TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL,
-            address TEXT NOT NULL,
-            description TEXT NOT NULL);
-            
-            CREATE TABLE files
-            (id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT NOT NULL,
-            organization_id INTEGER NOT NULL,
-            weaviate_class TEXT NOT NULL UNIQUE,
-            UNIQUE (name, organization_id),
-            FOREIGN KEY (organization_id) REFERENCES organizations(id));
-            
-            CREATE TABLE short_codes
-            (id INTEGER PRIMARY KEY,
-            short_code TEXT NOT NULL UNIQUE,
-            organization_id INTEGER NOT NULL,
-            UNIQUE (short_code, organization_id),
-            FOREIGN KEY (organization_id) REFERENCES organizations(id));
-            
-            CREATE TABLE short_code_files
-            (id INTEGER PRIMARY KEY,
-            short_code_id TEXT NOT NULL,
-            file_id INTEGER NOT NULL,
-            UNIQUE (short_code_id, file_id),
-            FOREIGN KEY (file_id) REFERENCES files(id),
-            FOREIGN KEY (short_code_id) REFERENCES short_codes(id));
-            
-            CREATE TABLE messages
-            (id INTEGER PRIMARY KEY,
-            content TEXT NOT NULL,
-            shortcode_id INT NOT NULL,
-            organization_id INT NOT NULL,
-            areas TEXT NOT NULL,
-            FOREIGN KEY (organization_id) REFERENCES organizations(id));
-            
-            CREATE TABLE areas
-            (id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            numbers TEXT NOT NULL);"""
-        )
-        conn.commit()
-        print(f"DB initialized successfully")
-    except Error as e:
-        print(e)
-
-    conn.commit()
-    conn.close()
+def verify_password(db_password, password):
+    return bcrypt.checkpw(
+        password.encode("utf-8"), base64.b64decode(db_password.encode("utf-8"))
+    )
 
 
-def insert_dummy_data():
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    try:
-        cursor.executescript(
-            """INSERT INTO organizations (name, address, description, email,password) VALUES 
-            (
-                'WHO',
-                '123 Main St.',
-                'We champion health and a better future for all. Dedicated to the well-being of all people and guided by science, the World Health Organization leads and champions global efforts to give everyone, everywhere an equal chance to live a healthy life.',
-                'info@who.com',
-                'password'),
-            (
-                'Globex Corp',
-                '456 Elm St.',
-                'An imaginary company',
-                'info@globex.com',
-                'passowrd');
-            """
-        )
-        cursor.executescript(
-            """INSERT INTO short_codes (short_code,organization_id) VALUES 
-            ("3525", 1);
-            INSERT INTO files (name, description, organization_id, weaviate_class) VALUES 
-            ("Pregnancy_Book_comp.pdf", "", 1, "WHO_Pregnancy_Book_comp");
-            INSERT INTO short_code_files (short_code_id, file_id) VALUES 
-            (1,1);
-            """,
-        )
-        cursor.executescript(
-            """
-            INSERT INTO areas (name, numbers) VALUES 
-            ('zaria - Kaduna state','+2347035251445,+2348012378000,+2347087654321'),
-            ('igabi - Kaduna state','+2347035251445,+2348012345111,+2347087654321'),
-            ('makarfi - Kaduna state','+23407035251445,+23408012345777,+2347087654321');
-            """
-        )
-        conn.commit()
-        print(f"DB Populated successfully")
-    except Error as e:
-        print(e)
-
-    conn.commit()
-    conn.close()
-
-
-# ORGANIZATIONS
 def add_organization(organization):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    error = None
+    organization.password = hash_password(organization.password)
     try:
-        cursor.execute(
-            "INSERT INTO organizations (name, email, password, address, description) VALUES (?, ?, ?, ?, ?)",
-            (
-                organization.name,
-                organization.email,
-                organization.password,
-                organization.address,
-                organization.description,
-            ),
+        response = (
+            supabase.table("_organizations").insert(organization.__dict__).execute()
         )
-        conn.commit()
-    except Error as e:
-        print(e)
-        error = e
-
-    last_row_id = cursor.lastrowid
-    if last_row_id:
-        cursor.execute("SELECT * FROM organizations WHERE id = ?", (last_row_id,))
-        row = cursor.fetchone()
-        print(f'{row["name"]}')
-        conn.close()
-        return row
-    else:
-        conn.close()
+        return response
+    except Exception as error:
         return {"error": error}
 
 
-def get_organization(email: str):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
+def get_organization(organization):
     try:
-        cursor.execute("SELECT * FROM organizations WHERE email = ?", (email,))
-        conn.commit()
-    except Error as e:
-        print(e)
-    result = cursor.fetchone()
-    print(f"Organization with email {email}")
-    conn.close()
-    return result
-
-
-# SHORT CODES
-def add_short_code(shortcode):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute(
-            "INSERT INTO short_codes (short_code, organization_id) VALUES (?, ?)",
-            (shortcode["shortcode"], shortcode["organization_id"]),
+        response = (
+            supabase.table("_organizations")
+            .select("*")
+            .eq("email", organization.email)
+            .single()
+            .execute()
         )
-    except Error as e:
-        print(e)
+    except Exception as error:
+        return {"error": error}
 
-    last_row_id = cursor.lastrowid
-    cursor.execute("SELECT * FROM short_codes WHERE id = ?", (last_row_id,))
-    row = cursor.fetchone()
-    print(row["short_code"])
+    if response.data:
+        db_password = response.data["password"]
 
-    conn.commit()
-    conn.close()
-    return row
+        if verify_password(db_password, organization.password):
+            del response.data["password"]
+            return response
+        else:
+            return {"error": "Invalid credentials"}
+    else:
+        return {"error": "Invalid credentials"}
 
 
-def get_short_codes(organization):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
+def add_file(organization, file):
     try:
-        cursor.execute(
-            "SELECT * FROM short_codes JOIN organizations ON short_codes.organization_id = organizations.id WHERE organizations.name = ?",
-            (organization,),
+        organization_from_db = (
+            supabase.table("_organizations")
+            .select("id")
+            .eq("name", organization)
+            .single()
+            .execute()
         )
-        conn.commit()
-    except Error as e:
-        print(e)
-    results = cursor.fetchall()
-    print(results)
-    conn.close()
-    return results
-
-
-def get_short_code(shortcode):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute(
-            """
-            SELECT *
-            FROM short_code_files scf
-            JOIN short_codes as sc, files as f
-            ON scf.id = sc.id
-            WHERE sc.short_code = ?
-            AND f.id = scf.file_id;""",
-            (shortcode,),
-        )
-        conn.commit()
-    except Error as e:
-        print(e)
-    result = cursor.fetchone()
-    conn.close()
-    return result
-
-
-def delete_short_code(id):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    try:
-        cursor.execute("DELETE FROM short_codes WHERE id = ? RETURNING *", (id))
-        row = cursor.fetchone()
-    except Error as e:
-        print(e)
-
-    conn.commit()
-    conn.close()
-    return row
-
-
-# FILES
-def add_file(file):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            "SELECT id FROM organizations WHERE name = ?", (file["organization"],)
-        )
-        found_organization = cursor.fetchone()
-        cursor.execute(
-            "INSERT INTO files (name, organization_id, description, weaviate_class) VALUES (?, ?, ?, ?)",
-            (
-                file["name"],
-                found_organization["id"],
-                file["description"],
-                file["weaviate_class"],
-            ),
-        )
-        last_row_id = cursor.lastrowid
-        cursor.execute("SELECT * FROM files WHERE id = ?", (last_row_id,))
-    except Error as e:
-        print(e)
-    row = cursor.fetchone()
-    print(f"Added file {file['name']}")
-
-    conn.commit()
-    conn.close()
-    return row
-
-
-def add_file_to_short_code(short_code, file_id):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    try:
-        found_short_code = cursor.execute(
-            "SELECT id FROM short_codes WHERE short_code=?", (short_code,)
-        ).fetchone()
-        if not found_short_code:
-            cursor.execute(
-                "INSERT INTO short_code_files (short_code_id, file_id) VALUES (?, ?)",
-                (short_code, file_id),
+        response = (
+            supabase.table("files")
+            .insert(
+                {
+                    "name": file["filename"],
+                    "organization_id": organization_from_db.data["id"],
+                    "description": file["description"],
+                    "weaviate_class": file["weaviate_class"],
+                }
             )
-            conn.commit()
-            last_row_id = cursor.lastrowid
-            cursor.execute(
-                "SELECT * FROM short_code_files WHERE id = ?", (last_row_id,)
+            .execute()
+        )
+        print(f"Added file -> {file['weaviate_class']}")
+        return response
+    except Exception as error:
+        print(f"Error: {error}")
+        return {"error": error}
+
+
+def add_shortcode(organization, shortcode):
+    try:
+        organization_from_db = (
+            supabase.table("_organizations")
+            .select("id")
+            .eq("name", organization)
+            .single()
+            .execute()
+        )
+        response = (
+            supabase.table("shortcodes")
+            .insert(
+                {
+                    "organization_id": organization_from_db.data["id"],
+                    "shortcode": shortcode,
+                }
             )
-            print(f"{short_code}")
-    except Error as e:
-        print(e)
-    row = cursor.fetchone()
-    conn.close()
-    return row
+            .execute()
+        )
+        if response.data:
+            print(f"Added shortcode -> {shortcode} for organization -> {organization}")
+        return response
+    except Exception as error:
+        print(f"Error: {error}")
+        return {"error": error}
 
 
-def add_message(message, organization, shortcode, areas):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+def check_shortcode(shortcode):
     try:
-        cursor.execute(
-            "SELECT * FROM short_codes JOIN organizations ON short_codes.short_code = ?",
-            (shortcode,),
+        shortcode = (
+            supabase.table("shortcodes")
+            .select("id")
+            .eq("shortcode", shortcode)
+            .single()
+            .execute()
         )
-        found_shortcode = cursor.fetchone()
-        cursor.execute(
-            "INSERT INTO messages (content, organization_id, shortcode_id, areas) VALUES (?, ?, ?, ?)",
-            (
-                message,
-                found_shortcode["organization_id"],
-                found_shortcode["id"],
-                "|".join(areas),
-            ),
-        )
-        conn.commit()
-        last_row_id = cursor.lastrowid
-        print(f"message: {message}")
-        cursor.execute(
-            """
-            SELECT *
-            FROM messages m
-            JOIN areas a ON m.areas LIKE '%' || a.name || '%'
-            WHERE m.id = ?""",
-            (last_row_id,),
-        )
-
-    except Error as e:
-        print(e)
-    row = cursor.fetchall()
-    conn.close()
-    return row
+        if shortcode.data:
+            print(f"Shortcode -> {shortcode} already exists")
+        return shortcode
+    except Exception as error:
+        print(f"Error: {error}")
+        return {"error": error}
 
 
-def get_messages(organization):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+def get_shortcodes(organization):
     try:
-        cursor.execute(
-            "SELECT * FROM messages JOIN organizations ON messages.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.name = ?",
-            (organization,),
+        organization_from_db = (
+            supabase.table("_organizations")
+            .select("*")
+            .eq("name", organization)
+            .single()
+            .execute()
         )
-    except Error as e:
-        print(e)
-    rows = cursor.fetchall()
-    print(rows)
-    conn.close()
-    return rows
+        shortcodes = (
+            supabase.table("shortcodes")
+            .select("*")
+            .eq("organization_id", organization_from_db.data["id"])
+            .execute()
+        )
+        return shortcodes
+    except Exception as error:
+        print(f"Error: {error}")
+        return {"error": error}
+
+
+def get_shortcode(shortcode):
+    try:
+        shortcode = (
+            supabase.table("files_shortcodes")
+            .select("*, shortcodes(*), files(*)")
+            .eq("shortcodes.shortcode", shortcode)
+            .single()
+            .execute()
+        )
+        return shortcode
+    except Exception as error:
+        print(f"Error: {error}")
+        return {"error": error}
+
+
+def add_file_to_shortcode(shortcode_id, file_id):
+    try:
+        response = (
+            supabase.table("files_shortcodes")
+            .insert({"shortcode_id": shortcode_id, "file_id": file_id})
+            .execute()
+        )
+        print(f"Added file with id -> {file_id} to shortcode id -> {shortcode_id}")
+        return response
+    except Exception as error:
+        print(f"Error: {error}")
+        return {"error": error}
 
 
 def get_areas():
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
     try:
-        cursor.execute("SELECT * FROM areas")
-    except Error as e:
-        print(e)
-    rows = cursor.fetchall()
-    print(rows)
-    conn.close()
-    return rows
+        areas = supabase.table("areas").select("*").execute()
+        return areas
+    except Exception as error:
+        return {"error": error}
+
+
+def get_message_areas(areas):
+    try:
+        areas = supabase.table("areas").select("*").in_("name", areas).execute()
+        return areas.data
+    except Exception as error:
+        return {"error": error}
+
+
+def add_message(message, organization, shortcode, areas):
+    try:
+        found_shortcode = (
+            supabase.table("shortcodes")
+            .select("id, _organizations(id)")
+            .eq("_organizations.name", organization)
+            .single()
+            .execute()
+        )
+        added_message = (
+            supabase.table("messages")
+            .insert(
+                {
+                    "content": message,
+                    "shortcode_id": found_shortcode.data["id"],
+                    "organization_id": found_shortcode.data["_organizations"]["id"],
+                    "areas": "|".join(areas),
+                }
+            )
+            .execute()
+        )
+        return added_message
+    except Exception as error:
+        return {"error": error}
+
+
+def get_messages(organization):
+    try:
+        messages = (
+            supabase.table("messages")
+            .select("*, _organizations(name), shortcodes(*)")
+            .eq("_organizations.name", organization)
+            .execute()
+        )
+        return messages
+    except Exception as error:
+        return {"error": error}
 
 
 def get_files(organization):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
     try:
-        cursor.execute(
-            "SELECT files.name, short_codes.short_code FROM short_code_files JOIN organizations,files,short_codes ON organizations.id = files.organization_id WHERE organizations.name = ?",
-            (organization,),
+        messages = (
+            supabase.table("files_shortcodes")
+            .select("*, files(*,_organizations(name)), shortcodes(*)")
+            .eq("files._organizations.name", organization)
+            .execute()
         )
-    except Error as e:
-        print(e)
-    rows = cursor.fetchall()
-    print(rows)
-    conn.close()
-    return rows
+        return messages
+    except Exception as error:
+        return {"error": error}
