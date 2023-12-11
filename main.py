@@ -18,10 +18,7 @@ import os
 load_dotenv()
 app = FastAPI()
 origins = [
-    "http://localhost",
-    "http://localhost:5173",
-    "*",
-    "https://connected-cohere-frontend.onrender.com",
+    os.environ.get("FRONTEND_URL"),
 ]
 
 app.add_middleware(
@@ -94,7 +91,7 @@ async def create_upload_file(
     description: Annotated[str, Form()] = "",
 ):
     found_shortcode = db.get_shortcode(shortcode)
-    if "error" not in found_shortcode:
+    if "error" in found_shortcode:
         wv_class = format_file_name(organization, file)
         wv_classes = get_wv_classes()
         print(wv_class)
