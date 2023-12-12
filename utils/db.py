@@ -171,10 +171,17 @@ def get_shortcode(shortcode):
 
 def get_shortcode_files(shortcode):
     try:
+        found_shortcode = (
+            supabase.table("shortcodes")
+            .select("*")
+            .eq("shortcode", shortcode)
+            .single()
+            .execute()
+        )
         shortcode = (
             supabase.table("files_shortcodes")
             .select("*, shortcodes(*), files(*)")
-            .eq("shortcodes.shortcode", shortcode)
+            .eq("shortcode_id", found_shortcode.data["id"])
             .single()
             .execute()
         )

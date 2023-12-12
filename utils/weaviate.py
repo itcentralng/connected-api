@@ -34,10 +34,10 @@ def wv_upload_doc(wv_client, doc, class_name):
 def wv_create_class(wv_client, class_name):
     class_obj = {
         "class": class_name,
-        "vectorizer": "text2vec-cohere",
+        "vectorizer": "text2vec-openai",
         "moduleConfig": {
-            "text2vec-cohere": {},
-            "generative-cohere": {},
+            "text2vec-openai": {},
+            "generative-openai": {},
         },
     }
 

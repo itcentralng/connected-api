@@ -32,7 +32,7 @@ app.add_middleware(
 wv_client = weaviate.Client(
     url=os.environ.get("WEAVIATE_URL"),
     auth_client_secret=weaviate.AuthApiKey(api_key=os.environ.get("WEAVIATE_API_KEY")),
-    additional_headers={"X-Cohere-Api-Key": os.environ.get("COHERE_API_KEY")},
+    additional_headers={"X-Openai-Api-Key": os.environ.get("OPENAI_API_KEY")},
 )
 
 
@@ -104,28 +104,29 @@ async def create_upload_file(
             loader = PyPDFLoader(f"uploads/{file.filename}")
             doc = loader.load()
             wv.wv_upload_doc(wv_client, doc, wv_class)
+
+            added_file = db.add_file(
+                organization,
+                {
+                    "filename": file.filename,
+                    "description": description,
+                    "weaviate_class": wv_class,
+                },
+            )
+            if "error" not in added_file:
+                added_shortcode = db.add_shortcode(organization, shortcode)
+                if "error" not in added_shortcode:
+                    response = db.add_file_to_shortcode(
+                        added_shortcode.data[0]["id"], added_file.data[0]["id"]
+                    )
+                    return response
+                else:
+                    return {"error": added_shortcode["error"]}
+            else:
+                return {"error": added_file["error"]}
         else:
             print("File already exist in weaviate DB")
-
-        added_file = db.add_file(
-            organization,
-            {
-                "filename": file.filename,
-                "description": description,
-                "weaviate_class": wv_class,
-            },
-        )
-        if "error" not in added_file:
-            added_shortcode = db.add_shortcode(organization, shortcode)
-            if "error" not in added_shortcode:
-                response = db.add_file_to_shortcode(
-                    added_shortcode.data[0]["id"], added_file.data[0]["id"]
-                )
-                return response
-            else:
-                return {"error": added_shortcode["error"]}
-        else:
-            return {"error": added_file["error"]}
+            return {"error": "File already exist in weaviate DB"}
 
     print("Error: shortcode already exists")
     return {"error": "shortcode already exists"}
@@ -194,8 +195,8 @@ async def receive_sms(request: Request):
     decoded_string = await request.body()
     parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
     result = db.get_shortcode_files(parsed_dict["to"][0])
-    print(f"Message received for -> {result.data['shortcodes']['shortcode']}")
     if result.data and parsed_dict["text"][0]:
+        print(f"Message received for -> {result.data['shortcodes']['shortcode']}")
         vectorstore = Weaviate(
             wv_client, result.data["files"]["weaviate_class"], "content"
         )
