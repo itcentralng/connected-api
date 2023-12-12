@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.llms.cohere import Cohere
+from langchain.llms.openai import OpenAI
 from langchain.document_loaders import PyPDFLoader
 from dotenv import load_dotenv
 import shutil
@@ -80,7 +80,7 @@ def format_file_name(organization, file):
 
 # Get all classes (file names) currently in weaviate
 def get_wv_classes():
-    return [row["class"].upper() for row in wv_client.schema.get()["classes"]]
+    return [row["class"] for row in wv_client.schema.get()["classes"]]
 
 
 @app.post("/organization/{organization}/uploadfile")
@@ -90,14 +90,15 @@ async def create_upload_file(
     shortcode: Annotated[str, Form()],
     description: Annotated[str, Form()] = "",
 ):
+    # wv_client.schema.delete_all()
     found_shortcode = db.get_shortcode(shortcode)
     if "error" in found_shortcode:
-        wv_class = format_file_name(organization, file)
+        wv_class = format_file_name(organization, file).upper()
         wv_classes = get_wv_classes()
         print(wv_class)
         print(wv_classes)
 
-        if wv_class.upper() not in wv_classes:
+        if wv_class not in wv_classes:
             wv.wv_create_class(wv_client, wv_class)
             wv.upload_doc(file)
 
@@ -194,7 +195,8 @@ async def receive_sms(request: Request):
     chat_history = []
     decoded_string = await request.body()
     parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
-    result = db.get_shortcode_files(parsed_dict["to"][0])
+    result = db.get_shortcode_files(parsed_dict["to"][0].upper())
+
     if result.data and parsed_dict["text"][0]:
         print(f"Message received for -> {result.data['shortcodes']['shortcode']}")
         vectorstore = Weaviate(
@@ -202,7 +204,7 @@ async def receive_sms(request: Request):
         )
         answer = wv.ask_question(
             vectorstore,
-            Cohere(temperature=0, truncate="END"),
+            OpenAI(temperature=0),
             parsed_dict["text"][0],
             chat_history,
         )
@@ -219,3 +221,4 @@ async def receive_sms(request: Request):
             [parsed_dict["from"][0]],
         )
         print("Error: Short code does'nt exist")
+    # pass
