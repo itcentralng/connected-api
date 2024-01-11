@@ -80,7 +80,10 @@ def format_file_name(organization, file):
 
 # Get all classes (file names) currently in weaviate
 def get_wv_classes():
-    return [row["class"] for row in wv_client.schema.get()["classes"]]
+    try:
+        return [row["class"] for row in wv_client.schema.get()["classes"]]
+    except Exception as error:
+        print(error)
 
 
 @app.post("/organization/{organization}/uploadfile")
@@ -90,6 +93,7 @@ async def create_upload_file(
     shortcode: Annotated[str, Form()],
     description: Annotated[str, Form()] = "",
 ):
+    # clear weaviate database
     # wv_client.schema.delete_all()
     found_shortcode = db.get_shortcode(shortcode)
     if "error" in found_shortcode:
@@ -98,14 +102,19 @@ async def create_upload_file(
         print(wv_class)
         print(wv_classes)
 
+        # Create weaviate class if it doesn't exist already
         if wv_class not in wv_classes:
+            # create class
             wv.wv_create_class(wv_client, wv_class)
+            # upload document to server (file system)
             wv.upload_doc(file)
 
             loader = PyPDFLoader(f"uploads/{file.filename}")
             doc = loader.load()
+            # upload document to weaviate
             wv.wv_upload_doc(wv_client, doc, wv_class)
 
+            # add file to database
             added_file = db.add_file(
                 organization,
                 {
@@ -114,8 +123,10 @@ async def create_upload_file(
                     "weaviate_class": wv_class,
                 },
             )
+            # add shortcode to database if there is no error adding file to database
             if "error" not in added_file:
                 added_shortcode = db.add_shortcode(organization, shortcode)
+                # add relationship between file and shortcode if no error adding shortcode to database
                 if "error" not in added_shortcode:
                     response = db.add_file_to_shortcode(
                         added_shortcode.data[0]["id"], added_file.data[0]["id"]
@@ -141,14 +152,18 @@ class Message(BaseModel):
 
 @app.post("/{organization}/message/")
 def add_message(message: Message, organization: str):
+    # get all numbers by selected areas
     numbers = [row["numbers"].split(",") for row in db.get_message_areas(message.areas)]
     all_numbers = []
+    # merge all the numbers
     for nums in numbers:
         all_numbers = [*all_numbers, *nums]
     print(all_numbers)
     print(message.content)
+    # send message to all numbers
     AfricasTalking().send(message.shortcode, message.content, all_numbers)
 
+    # add message record to database
     added_message = db.add_message(
         message.content, organization, message.shortcode, message.areas
     )
@@ -193,21 +208,27 @@ def get_shortcodes(organization: str):
 @app.post("/sms")
 async def receive_sms(request: Request):
     chat_history = []
+    # parse received request body
     decoded_string = await request.body()
     parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
+    # get the specific shortcode the message was sent to
     result = db.get_shortcode_files(parsed_dict["to"][0].upper())
 
+    # proceed if the shortcode exists and the message content is not empty
     if result.data and parsed_dict["text"][0]:
         print(f"Message received for -> {result.data['shortcodes']['shortcode']}")
+        # initialize langchain weaviate client
         vectorstore = Weaviate(
             wv_client, result.data["files"]["weaviate_class"], "content"
         )
+        # get the answer to the question
         answer = wv.ask_question(
             vectorstore,
             OpenAI(temperature=0),
             parsed_dict["text"][0],
             chat_history,
         )
+        # print the list of weaviate classes for debugging purposes
         classes = get_wv_classes()
         print(classes)
         print(f'Message -> {parsed_dict["text"][0]}')
@@ -215,6 +236,7 @@ async def receive_sms(request: Request):
         print(answer)
         AfricasTalking().send(parsed_dict["to"][0], answer, [parsed_dict["from"][0]])
     else:
+        # give the user feedback
         AfricasTalking().send(
             parsed_dict["to"][0],
             "Sorry we are having a technical issue. Try again later",
