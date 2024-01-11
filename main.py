@@ -84,6 +84,7 @@ def get_wv_classes():
         return [row["class"] for row in wv_client.schema.get()["classes"]]
     except Exception as error:
         print(error)
+        return []
 
 
 @app.post("/organization/{organization}/uploadfile")
