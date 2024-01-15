@@ -271,3 +271,7 @@ def get_files(organization):
         return messages
     except Exception as error:
         return {"error": error}
+
+
+def delete_all_organizations():
+    data = supabase.table("_organizations").delete().gt("id", 0).execute()

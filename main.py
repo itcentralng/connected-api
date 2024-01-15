@@ -94,8 +94,6 @@ async def create_upload_file(
     shortcode: Annotated[str, Form()],
     description: Annotated[str, Form()] = "",
 ):
-    # clear weaviate database
-    # wv_client.schema.delete_all()
     found_shortcode = db.get_shortcode(shortcode)
     if "error" in found_shortcode:
         wv_class = format_file_name(organization, file).upper()
@@ -245,3 +243,13 @@ async def receive_sms(request: Request):
         )
         print("Error: Short code does'nt exist")
     # pass
+
+
+@app.get("/cleardb")
+def clear_db():
+    # clear weaviate database
+    wv_client.schema.delete_all()
+    print("Cleared weavite DB")
+    # clear DB
+    db.delete_all_organizations()
+    print("Cleared supabase DB")
