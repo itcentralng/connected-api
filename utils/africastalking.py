@@ -15,7 +15,8 @@ class AfricasTalking:
 
     def send(self, sender, message, recipients):
         try:
-            response = self.sms.send(message, recipients, sender)
+            response = self.sms.send(message, [recipients], sender)
             print(response)
         except Exception as e:
+            # print(recipients)
             print(f"Houston, we have a problem: {e}")

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, Form, Request
@@ -92,23 +92,23 @@ async def create_upload_file(
     print(classes)
     print(file.filename)
     # DB Operations
-    added_file = db.add_file(
-        {
-            "name": file.filename,
-            "organization": organization,
-            "weaviate_class": wv_class_name,
-            "description": description,
-        }
-    )
-    if added_file:
-        added_shortcode = db.add_short_code(
-            {
-                "shortcode": shortcode,
-                "organization_id": added_file["organization_id"],
-            }
-        )
-        print(added_file["weaviate_class"])
-        db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
+    # added_file = db.add_file(
+    #     {
+    #         "name": file.filename,
+    #         "organization": organization,
+    #         "weaviate_class": wv_class_name,
+    #         "description": description,
+    #     }
+    # )
+    # if added_file:
+    #     added_shortcode = db.add_short_code(
+    #         {
+    #             "shortcode": shortcode,
+    #             "organization_id": added_file["organization_id"],
+    #         }
+    #     )
+    #     print(added_file["weaviate_class"])
+    #     db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
         try:
@@ -119,7 +119,7 @@ async def create_upload_file(
                 shutil.copyfileobj(file.file, buffer)
             loader = PyPDFLoader(f"uploads/{file.filename}")
             doc = loader.load()
-            wv_upload_doc(wv_client, doc, wv_class_name)
+            wv_upload_doc(wv_client, doc, wv_class_name) #################
 
         except ValueError:
             return {"message": f"file: {file.filename} was not uploaded to server"}
@@ -129,7 +129,7 @@ async def create_upload_file(
             file.file.close()
     else:
         return {"msg": "File already exists"}
-    return added_file
+    # return added_file
 
 
 @app.post("organizations/{organization}/deletefile")
@@ -209,22 +209,39 @@ async def receive_sms(request: Request):
 class Message(BaseModel):
     content: str
     shortcode: str
-    areas: list[str]
+    areas: list
 
+        # Send message to all numbers in the specified areas using AfricasTalking
+        # all_numbers = [number for area in areas for number in area.get("numbers").split(",")]
+        # print(areas)
+      
+        # print(areas)
 
 @app.post("/{organization}/message/add")
-def add_message(message: Message, organization: str):
-    added_message = db.add_message(
-        message.content, organization, message.shortcode, message.areas
-    )
-    numbers = [row["numbers"].split(",") for row in added_message]
-    all_numbers = []
-    for nums in numbers:
-        all_numbers = [*all_numbers, *nums]
-    print(all_numbers)
-    print(message.content)
-    AfricasTalking().send(message.shortcode, message.content, all_numbers)
-    return {"msg": "successfully sent messages"}
+async def add_message(message: Message):
+    try:
+        # Extract data from the message object
+        content = message.content
+        shortcode = message.shortcode
+        areas = message.areas
+        
+        # Split the numbers and iterate over each
+        all_numbers = [number for numbers_str in areas for number in numbers_str.split(",")]
+        print(all_numbers)        
+
+        # Initialize AfricasTalking instance
+        africas_talking = AfricasTalking()
+
+        # Send message to each number
+        for recipient in all_numbers:
+            africas_talking.send(shortcode, content, recipient)
+
+        # Return success message
+        return {"msg": "Successfully sent messages"}
+    except Exception as e:
+        # Log or handle the exception as needed
+        print("Error sending message:", e)
+        raise HTTPException(status_code=500, detail="Failed to send message")
 
 
 @app.get("/{organization}/messages/")
