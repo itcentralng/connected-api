@@ -55,13 +55,13 @@ class AddOrganisation(BaseModel):
     password: str
 
 
-@app.post("/organization")
-def register_org(organization: AddOrganisation):
-    result = db.get_organization(organization.email)
-    if result:
-        if result["password"] == organization.password:
-            return result
-    return {"error": "Login unsuccessful"}
+# @app.post("/organization")
+# def register_org(organization: AddOrganisation):
+#     result = db.get_organization(organization.email)
+#     if result:
+#         if result["password"] == organization.password:
+#             return result
+#     return {"error": "Login unsuccessful"}
 
 
 class Organization(BaseModel):
@@ -267,11 +267,11 @@ async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
     return {"answer": file.filename, "orgn": organization}
 
 
-@app.get("/initdb")
-async def init_db(all: bool = False):
-    db.init_db()
-    db.insert_dummy_data()
-    if all:
-        wv_client.schema.delete_all()
-        print("Cleared Weaviate DB")
-    return {"msg": "DB Initialization successfull"}
+# @app.get("/initdb")
+# async def init_db(all: bool = False):
+#     db.init_db()
+#     db.insert_dummy_data()
+#     if all:
+#         wv_client.schema.delete_all()
+#         print("Cleared Weaviate DB")
+#     return {"msg": "DB Initialization successfull"}
