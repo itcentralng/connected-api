@@ -44,7 +44,6 @@ By partnering both information providers and citizens on one cohesive platform, 
 11. Enter your Ngrok address [here](https://account.africastalking.com/apps/sandbox/sms/inbox/callback) (make sure you add a `/sms` at the end of the address)
 
 **_Note:_** AfricasTalking API key may take some time after creation before you can use it.
-**_Note:_** To clear the database send a get request to `[YOUR_API_URL]/initdb` end point (something like opening `my_server_url.com/initdb` in your web browser or `my_server_url.com/initdb?all=True` to also clear the Weaviate DB).
 **_Note:_** OpenAI and Cohere have a rate limit on their free plan, so uploading a file will result in an error.
 
 ### The FrontEnd
