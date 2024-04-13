@@ -17,8 +17,8 @@ import urllib.parse
 import os
 
 # initialize database on first run
-db.init_db()
-db.insert_dummy_data()
+# db.init_db()
+# db.insert_dummy_data()
 
 load_dotenv()
 app = FastAPI()
@@ -27,6 +27,7 @@ origins = [
     "http://localhost:5173",
     "*",
     "https://connected-cohere-frontend.onrender.com",
+    "https://connected-api-lja8.onrender.com",
 ]
 
 app.add_middleware(
@@ -175,14 +176,17 @@ def register_short_code(id):
 class FileInfo(BaseModel):
     file_id: int
 
+class Sms(BaseModel):
+    shortcode: str
 
 # SMS
 @app.post("/sms")
 async def receive_sms(request: Request):
+    print(shortcode)
     decoded_string = await request.body()
     parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
     chat_history = []
-    result = db.get_short_code(parsed_dict["to"][0])
+    result = db.get_short_code(parsed_dict["to"][0]) ##########################################
     if result and parsed_dict["text"][0]:
         vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
         answer = ask_question(
@@ -195,7 +199,7 @@ async def receive_sms(request: Request):
         print(classes)
         print(parsed_dict)
         print(answer)
-        AfricasTalking().send(parsed_dict["to"][0], answer, [parsed_dict["from"][0]])
+        AfricasTalking().send(parsed_dict["to"][0], answer, shortcode)
         return {"answer": answer}
     else:
         AfricasTalking().send(
@@ -234,7 +238,7 @@ async def add_message(message: Message):
 
         # Send message to each number
         for recipient in all_numbers:
-            africas_talking.send(shortcode, content, recipient)
+            africas_talking.send(shortcode, content, [recipient])
 
         # Return success message
         return {"msg": "Successfully sent messages"}
