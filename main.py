@@ -222,25 +222,42 @@ class Message(BaseModel):
 # async def add_message(message: Message):
     
 @app.post("/{organization}/message/add")
-async def add_message(message: Message, organization: str):
-    # get all numbers by selected areas
-    numbers = [row["numbers"].split(",") for row in db.get_message_areas(message.areas)]
-    all_numbers = []
-    # merge all the numbers
-    for nums in numbers:
-        all_numbers = [*all_numbers, *nums]
-    print(all_numbers)
-    print(message.content)
-    # send message to all numbers
-    AfricasTalking().send(message.shortcode, message.content, all_numbers)
-
-    # add message record to database
-    added_message = db.add_message(
+def add_message(message: Message, organization: str):
+    try:
+        added_message = db.add_message(
         message.content, organization, message.shortcode, message.areas
-    )
-    if "error" not in added_message:
-        return {"msg": "successfully sent message"}
-    return {"error": added_message["error"]}
+        )       
+        numbers = [row["numbers"].split(",") for row in added_message]
+        all_numbers = []
+        for nums in numbers:
+            all_numbers = [*all_numbers, *nums]
+        print(all_numbers)
+        print(message.content)
+        AfricasTalking().send(message.shortcode, message.content, all_numbers)
+        return {"msg": "successfully sent messages"}
+    
+    except Exception as e:
+        # Log or handle the exception as needed
+        print("Error sending message:", e)
+        raise HTTPException(status_code=500, detail="Failed to send message")
+    # # get all numbers by selected areas
+    # numbers = [row["numbers"].split(",") for row in db.get_message_areas(message.areas)]
+    # all_numbers = []
+    # # merge all the numbers
+    # for nums in numbers:
+    #     all_numbers = [*all_numbers, *nums]
+    # print(all_numbers)
+    # print(message.content)
+    # # send message to all numbers
+    # AfricasTalking().send(message.shortcode, message.content, all_numbers)
+
+    # # add message record to database
+    # added_message = db.add_message(
+    #     message.content, organization, message.shortcode, message.areas
+    # )
+    # if "error" not in added_message:
+    #     return {"msg": "successfully sent message"}
+    # return {"error": added_message["error"]}
 
     
     # # try:
