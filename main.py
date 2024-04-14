@@ -17,8 +17,8 @@ import urllib.parse
 import os
 
 # initialize database on first run
-# db.init_db()
-# db.insert_dummy_data()
+db.init_db()
+db.insert_dummy_data()
 
 load_dotenv()
 app = FastAPI()
@@ -56,13 +56,13 @@ class AddOrganisation(BaseModel):
     password: str
 
 
-# @app.post("/organization")
-# def register_org(organization: AddOrganisation):
-#     result = db.get_organization(organization.email)
-#     if result:
-#         if result["password"] == organization.password:
-#             return result
-#     return {"error": "Login unsuccessful"}
+@app.post("/organization")
+def register_org(organization: AddOrganisation):
+    result = db.get_organization(organization.email)
+    if result:
+        if result["password"] == organization.password:
+            return result
+    return {"error": "Login unsuccessful"}
 
 
 class Organization(BaseModel):
@@ -93,23 +93,23 @@ async def create_upload_file(
     print(classes)
     print(file.filename)
     # DB Operations
-    # added_file = db.add_file(
-    #     {
-    #         "name": file.filename,
-    #         "organization": organization,
-    #         "weaviate_class": wv_class_name,
-    #         "description": description,
-    #     }
-    # )
-    # if added_file:
-    #     added_shortcode = db.add_short_code(
-    #         {
-    #             "shortcode": shortcode,
-    #             "organization_id": added_file["organization_id"],
-    #         }
-    #     )
-    #     print(added_file["weaviate_class"])
-    #     db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
+    added_file = db.add_file(
+        {
+            "name": file.filename,
+            "organization": organization,
+            "weaviate_class": wv_class_name,
+            "description": description,
+        }
+    )
+    if added_file:
+        added_shortcode = db.add_short_code(
+            {
+                "shortcode": shortcode,
+                "organization_id": added_file["organization_id"],
+            }
+        )
+        print(added_file["weaviate_class"])
+        db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
         try:
@@ -182,11 +182,10 @@ class Sms(BaseModel):
 # SMS
 @app.post("/sms")
 async def receive_sms(request: Request):
-    print(shortcode)
     decoded_string = await request.body()
     parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
     chat_history = []
-    result = db.get_short_code(parsed_dict["to"][0]) ##########################################
+    result = db.get_short_code(parsed_dict["to"][0])
     if result and parsed_dict["text"][0]:
         vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
         answer = ask_question(
@@ -199,7 +198,7 @@ async def receive_sms(request: Request):
         print(classes)
         print(parsed_dict)
         print(answer)
-        AfricasTalking().send(parsed_dict["to"][0], answer, shortcode)
+        AfricasTalking().send(parsed_dict["to"][0], answer, [parsed_dict["from"][0]])
         return {"answer": answer}
     else:
         AfricasTalking().send(
@@ -210,42 +209,46 @@ async def receive_sms(request: Request):
         print("Error: Short code does'nt exist")
 
 
+
+
 class Message(BaseModel):
     content: str
     shortcode: str
     areas: list
 
         # Send message to all numbers in the specified areas using AfricasTalking
-        # all_numbers = [number for area in areas for number in area.get("numbers").split(",")]
-        # print(areas)
-      
-        # print(areas)
 
 @app.post("/{organization}/message/add")
 async def add_message(message: Message):
-    try:
+    # try:
         # Extract data from the message object
         content = message.content
         shortcode = message.shortcode
         areas = message.areas
+        all_numbers = [number for area in areas for number in area.get("numbers").split(",")]
+        # print(areas)
+      
+        # print(areas)
         
-        # Split the numbers and iterate over each
-        all_numbers = [number for numbers_str in areas for number in numbers_str.split(",")]
-        print(all_numbers)        
+        print(all_numbers)
+        
+    #     # Split the numbers and iterate over each
+    #     all_numbers = [number for numbers_str in areas for number in numbers_str.split(",")]
+    #     print(all_numbers)        
 
-        # Initialize AfricasTalking instance
-        africas_talking = AfricasTalking()
+    #     # Initialize AfricasTalking instance
+    #     africas_talking = AfricasTalking()
 
-        # Send message to each number
-        for recipient in all_numbers:
-            africas_talking.send(shortcode, content, [recipient])
+    #     # Send message to each number
+    #     for recipient in all_numbers:
+    #         africas_talking.send(shortcode, content, [recipient])
 
-        # Return success message
-        return {"msg": "Successfully sent messages"}
-    except Exception as e:
-        # Log or handle the exception as needed
-        print("Error sending message:", e)
-        raise HTTPException(status_code=500, detail="Failed to send message")
+    #     # Return success message
+    #     return {"msg": "Successfully sent messages"}
+    # except Exception as e:
+    #     # Log or handle the exception as needed
+    #     print("Error sending message:", e)
+    #     raise HTTPException(status_code=500, detail="Failed to send message")
 
 
 @app.get("/{organization}/messages/")
@@ -271,11 +274,11 @@ async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
     return {"answer": file.filename, "orgn": organization}
 
 
-# @app.get("/initdb")
-# async def init_db(all: bool = False):
-#     db.init_db()
-#     db.insert_dummy_data()
-#     if all:
-#         wv_client.schema.delete_all()
-#         print("Cleared Weaviate DB")
-#     return {"msg": "DB Initialization successfull"}
+@app.get("/initdb")
+async def init_db(all: bool = False):
+    db.init_db()
+    db.insert_dummy_data()
+    if all:
+        wv_client.schema.delete_all()
+        print("Cleared Weaviate DB")
+    return {"msg": "DB Initialization successfull"}
