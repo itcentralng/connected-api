@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException
 from pydantic import BaseModel
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, Form, Request
@@ -17,8 +17,8 @@ import urllib.parse
 import os
 
 # initialize database on first run
-db.init_db()
-db.insert_dummy_data()
+# db.init_db()
+# db.insert_dummy_data()
 
 load_dotenv()
 app = FastAPI()
@@ -57,12 +57,15 @@ class AddOrganisation(BaseModel):
 
 
 @app.post("/organization")
-def register_org(organization: AddOrganisation):
+def login_organization(organization: AddOrganisation):
     result = db.get_organization(organization.email)
-    if result:
-        if result["password"] == organization.password:
-            return result
-    return {"error": "Login unsuccessful"}
+    # print(result)
+    try:
+        if result:
+            if result["password"] == organization.password:
+                return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class Organization(BaseModel):
@@ -79,37 +82,40 @@ def register_org(organization: Organization):
     return added_organization
 
 
+# class uploadFile(BaseModel):
+#     file: UploadFile = File(...)
+#     organization: str
+#     shortcode: str
+#     organization_id:str
+#     description: str
+    
+
+
 @app.post("/organization/{organization}/uploadfile")
-async def create_upload_file(
-    file: UploadFile,
-    organization: str,
-    shortcode: Annotated[str, Form()],
-    description: Annotated[str, Form()] = "",
-):
+async def create_upload_file(organization: str, file: UploadFile = Form(...), shortcode: str = Form(...), organization_id: str = Form(...)):
+    
     wv_class_name = f"{organization}_{file.filename.split('.')[0]}".replace(
         " ", ""
     ).replace("-", "")
     classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
     print(classes)
     print(file.filename)
+    print(f"shortcode is: {shortcode}")
     # DB Operations
     added_file = db.add_file(
         {
             "name": file.filename,
             "organization": organization,
             "weaviate_class": wv_class_name,
-            "description": description,
         }
     )
+    print('FILE ADDED: ', added_file)
     if added_file:
-        added_shortcode = db.add_short_code(
-            {
-                "shortcode": shortcode,
-                "organization_id": added_file["organization_id"],
-            }
-        )
-        print(added_file["weaviate_class"])
-        db.add_file_to_short_code(added_shortcode["id"], added_file["id"])
+        added_shortcode = db.add_short_code(shortcode, organization_id)
+        # print(added_file["weaviate_class"])
+        if added_shortcode:
+            db.add_file_to_short_code(shortcode, file.filename)
+
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
         try:
@@ -131,6 +137,7 @@ async def create_upload_file(
     else:
         return {"msg": "File already exists"}
     # return added_file
+    return {}
 
 
 @app.post("organizations/{organization}/deletefile")
@@ -139,9 +146,10 @@ async def delete_files(organization: str, filename: str):
     return {"message": f"{organization}_{filename.split('.')[0]}"}
 
 
-@app.get("/{organization}/files")
-async def get_short_codes(organization: str):
-    results = db.get_files(organization)
+@app.get("/{organization_id}/files")
+async def get_short_codes(organization_id: int):
+    print(organization_id)
+    results = db.get_files(organization_id)
     print(results)
     return results
 
@@ -162,7 +170,7 @@ def register_short_code(short_code: ShortCode, organization: str):
 @app.get("/{organization}/shortcodes")
 async def get_short_codes(organization: str):
     results = db.get_short_codes(organization)
-    print(results)
+    print(f"shortcodes: {results}")
     return {"short_codes": results}
 
 
@@ -183,14 +191,16 @@ class Sms(BaseModel):
 @app.post("/sms")
 async def receive_sms(request: Request):
     decoded_string = await request.body()
+    print(decoded_string)
     parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
+    print(parsed_dict)
     chat_history = []
     result = db.get_short_code(parsed_dict["to"][0])
     if result and parsed_dict["text"][0]:
         vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
         answer = ask_question(
             vectorstore,
-            Cohere(temperature=0),
+            Cohere(temperature=0), 
             parsed_dict["text"][0],
             chat_history,
         )
@@ -223,38 +233,42 @@ class Message(BaseModel):
     
 @app.post("/{organization}/message/add")
 def add_message(message: Message, organization: str):
-    try:
-        added_message = db.add_message(
-        message.content, organization, message.shortcode, message.areas
-        )       
-        numbers = [row["numbers"].split(",") for row in added_message]
-        all_numbers = []
-        for nums in numbers:
-            all_numbers = [*all_numbers, *nums]
-        print(all_numbers)
-        print(message.content)
-        AfricasTalking().send(message.shortcode, message.content, all_numbers)
-        return {"msg": "successfully sent messages"}
-    
-    except Exception as e:
-        # Log or handle the exception as needed
-        print("Error sending message:", e)
-        raise HTTPException(status_code=500, detail="Failed to send message")
-    # # get all numbers by selected areas
-    # numbers = [row["numbers"].split(",") for row in db.get_message_areas(message.areas)]
-    # all_numbers = []
-    # # merge all the numbers
-    # for nums in numbers:
-    #     all_numbers = [*all_numbers, *nums]
-    # print(all_numbers)
-    # print(message.content)
-    # # send message to all numbers
-    # AfricasTalking().send(message.shortcode, message.content, all_numbers)
-
-    # # add message record to database
-    # added_message = db.add_message(
+    # try:
+    #     added_message = db.add_message(
     #     message.content, organization, message.shortcode, message.areas
-    # )
+    #     )
+    #     print("Message areas: ", message.shortcode)
+    #     numbers = [row["numbers"].split(",") for row in added_message]
+    #     all_numbers = []
+    #     for nums in numbers:
+    #         all_numbers = [*all_numbers, *nums]
+    #     print(all_numbers)
+    #     print(message.content)
+    #     AfricasTalking().send(message.shortcode, message.content, all_numbers)
+    #     return {"msg": "successfully sent messages"}
+    
+    # except Exception as e:
+    #     # Log or handle the exception as needed
+    #     print("Error sending message:", e)
+    #     raise HTTPException(status_code=500, detail="Failed to send message")
+    # # get all numbers by selected areas
+    numbers = [row["numbers"].split(",") for row in db.get_areas()]
+    print("Numbers: ", numbers)
+    all_numbers = []
+    # merge all the numbers
+    for nums in numbers:
+        all_numbers = [*all_numbers, *nums]
+    print(all_numbers)
+    print(message.content)
+    # send message to all numbers
+    AfricasTalking().send(message.shortcode, message.content, all_numbers)
+    print("success")
+
+    # add message record to database
+    added_message = db.add_message(
+        message.content, organization, message.shortcode, message.areas
+    )
+    print("Added message: ", added_message)
     # if "error" not in added_message:
     #     return {"msg": "successfully sent message"}
     # return {"error": added_message["error"]}
@@ -307,6 +321,19 @@ def get_areas():
     areas = db.get_areas()
     print(areas)
     return areas
+
+
+class AreaAndNumbers(BaseModel):
+    area_name: str
+    numbers: str
+
+
+@app.post("/add_numbers_to_area")
+async def add_numbers_to_area(area_and_numbers: AreaAndNumbers):
+    if db.insert_new_number(area_and_numbers.area_name, area_and_numbers.numbers):
+        return {"message": f"Numbers added to area '{area_and_numbers.area_name}' successfully"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to add numbers to the database")
 
 
 @app.post("/test")

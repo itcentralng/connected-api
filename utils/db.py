@@ -1,34 +1,52 @@
 # WILL USE AN ORM INSTEAD
-import sqlite3
-from sqlite3 import Error
+# import sqlite3
+# from sqlite3 import Error
+import psycopg2
+from psycopg2 import Error
+from urllib.parse import urlparse
+import os
+
+import psycopg2.extras
 
 
-def create_connection(db_file):
+def create_connection():
     conn = None
     try:
-        conn = sqlite3.connect(db_file)
+        # conn = sqlite3.connect(db_file)
+        url = os.environ.get("DBURL")
+        parsed_url = urlparse(url)
+        conn = psycopg2.connect(
+            dbname=parsed_url.path[1:],
+            user=parsed_url.username,
+            password=parsed_url.password,
+            host=parsed_url.hostname,
+            port=parsed_url.port,
+            cursor_factory=psycopg2.extras.RealDictCursor,  # Return rows as dictionaries
+
+        )
+        return conn
     except Error as e:
         print(e)
-    finally:
-        if conn:
-            return conn
+    # finally:
+    #     if conn:
+    #         return conn
 
 
 # SETUP DB
 def clear_db():
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
-        cursor.executescript(
+        cursor.execute(
             """
-        DROP TABLE IF EXISTS organizations;
-        DROP TABLE IF EXISTS files;
-        DROP TABLE IF EXISTS short_codes;
-        DROP TABLE IF EXISTS short_code_files;
-        DROP TABLE IF EXISTS messages;
-        DROP TABLE IF EXISTS areas;"""
+        DROP TABLE IF EXISTS organizations CASCADE;
+        DROP TABLE IF EXISTS files CASCADE;
+        DROP TABLE IF EXISTS short_codes CASCADE;
+        DROP TABLE IF EXISTS short_code_files CASCADE;
+        DROP TABLE IF EXISTS messages CASCADE;
+        DROP TABLE IF EXISTS areas CASCADE;"""
         )
         conn.commit()
         print(f"DB cleared successfully")
@@ -40,15 +58,15 @@ def clear_db():
 
 
 def init_db():
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     # Clear and create the organizations table
     clear_db()
     try:
-        cursor.executescript(
+        cursor.execute(
             """CREATE TABLE organizations
-            (id INTEGER PRIMARY KEY,
+            (id SERIAL PRIMARY KEY,
             name TEXT NOT NULL UNIQUE,
             email TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
@@ -56,39 +74,38 @@ def init_db():
             description TEXT NOT NULL);
             
             CREATE TABLE files
-            (id INTEGER PRIMARY KEY,
+            (id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
-            description TEXT NOT NULL,
             organization_id INTEGER NOT NULL,
             weaviate_class TEXT NOT NULL UNIQUE,
             UNIQUE (name, organization_id),
             FOREIGN KEY (organization_id) REFERENCES organizations(id));
             
             CREATE TABLE short_codes
-            (id INTEGER PRIMARY KEY,
+            (id SERIAL PRIMARY KEY,
             short_code TEXT NOT NULL UNIQUE,
             organization_id INTEGER NOT NULL,
             UNIQUE (short_code, organization_id),
             FOREIGN KEY (organization_id) REFERENCES organizations(id));
             
             CREATE TABLE short_code_files
-            (id INTEGER PRIMARY KEY,
-            short_code_id TEXT NOT NULL,
-            file_id INTEGER NOT NULL,
+            (id SERIAL PRIMARY KEY,
+            short_code_id INTEGER NOT NULL,
+            file_id SERIAL NOT NULL,
             UNIQUE (short_code_id, file_id),
             FOREIGN KEY (file_id) REFERENCES files(id),
             FOREIGN KEY (short_code_id) REFERENCES short_codes(id));
             
             CREATE TABLE messages
-            (id INTEGER PRIMARY KEY,
+            (id SERIAL PRIMARY KEY,
             content TEXT NOT NULL,
             shortcode_id INT NOT NULL,
-            organization_id INT NOT NULL,
+            organization_id INTEGER NOT NULL,
             areas TEXT NOT NULL,
             FOREIGN KEY (organization_id) REFERENCES organizations(id));
             
             CREATE TABLE areas
-            (id INTEGER PRIMARY KEY,
+            (id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             numbers TEXT NOT NULL);"""
         )
@@ -97,16 +114,15 @@ def init_db():
     except Error as e:
         print(e)
 
-    conn.commit()
     conn.close()
 
 
 def insert_dummy_data():
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
-        cursor.executescript(
+        cursor.execute(
             """INSERT INTO organizations (name, address, description, email,password) VALUES 
             (
                 'WHO',
@@ -122,21 +138,10 @@ def insert_dummy_data():
                 'passowrd');
             """
         )
-        cursor.executescript(
-            """INSERT INTO short_codes (short_code,organization_id) VALUES 
-            ("3525", 1);
-            INSERT INTO files (name, description, organization_id, weaviate_class) VALUES 
-            ("Pregnancy_Book_comp.pdf", "", 1, "WHO_Pregnancy_Book_comp");
-            INSERT INTO short_code_files (short_code_id, file_id) VALUES 
-            (1,1);
-            """,
-        )
-        cursor.executescript(
+        cursor.execute(
             """
             INSERT INTO areas (name, numbers) VALUES 
-            ('zaria - Kaduna state','+2347035251445,+2348012378000,+2347087654321'),
-            ('igabi - Kaduna state','+2347035251445,+2348012345111,+2347087654321'),
-            ('makarfi - Kaduna state','+23407035251445,+23408012345777,+2347087654321');
+            ('zaria - Kaduna state','+2348162577778');
             """
         )
         conn.commit()
@@ -144,19 +149,18 @@ def insert_dummy_data():
     except Error as e:
         print(e)
 
-    conn.commit()
     conn.close()
 
 
 # ORGANIZATIONS
 def add_organization(organization):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     error = None
     try:
         cursor.execute(
-            "INSERT INTO organizations (name, email, password, address, description) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO organizations (name, email, password, address, description) VALUES (%s, %s, %s, %s, %s)",
             (
                 organization.name,
                 organization.email,
@@ -172,7 +176,7 @@ def add_organization(organization):
 
     last_row_id = cursor.lastrowid
     if last_row_id:
-        cursor.execute("SELECT * FROM organizations WHERE id = ?", (last_row_id,))
+        cursor.execute("SELECT * FROM organizations WHERE id = %s", (last_row_id,))
         row = cursor.fetchone()
         print(f'{row["name"]}')
         conn.close()
@@ -183,53 +187,99 @@ def add_organization(organization):
 
 
 def get_organization(email: str):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT * FROM organizations WHERE email = ?", (email,))
-        conn.commit()
+        cursor.execute("SELECT * FROM organizations WHERE email = %s", (email,))
+        # conn.commit()
     except Error as e:
         print(e)
     result = cursor.fetchone()
     print(f"Organization with email {email}")
     conn.close()
-    return result
+    # print(result)
+    
+    if result:
+        if isinstance(result, tuple):
+            organization_dict = {
+                "id": result[0],
+                "name": result[1],
+                "email": result[2],
+                "password": result[3],
+                "address": result[4],
+                "description": result[5]
+            }
+            return organization_dict
+        elif isinstance(result, dict):  # Assuming you're using RealDictRow
+            return result
+    else:
+        return None
+        
+    # return result
+
+
+# # SHORT CODES
+# def add_short_code(shortcode, organization_id):
+#     conn = create_connection()
+#     # conn.row_factory = sqlite3.Row
+#     cursor = conn.cursor()
+
+#     try:
+#         print(f"added shortcode is {shortcode}")
+#         cursor.execute(
+#             "INSERT INTO short_codes (short_code, organization_id) VALUES (%s, %s)",
+#             (shortcode, organization_id),
+#         )
+#     except Error as e:
+#         print(e)
+#         return None
+
+#     last_row_id = cursor.lastrowid
+#     cursor.execute("SELECT * FROM short_codes WHERE id = %s", (last_row_id,))
+#     row = cursor.fetchone()
+#     # print(row["short_code"])
+
+#     conn.commit()
+#     conn.close()
+#     return row
 
 
 # SHORT CODES
-def add_short_code(shortcode):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+def add_short_code(shortcode, organization_id):
+    conn = create_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute(
-            "INSERT INTO short_codes (short_code, organization_id) VALUES (?, ?)",
-            (shortcode["shortcode"], shortcode["organization_id"]),
+            "INSERT INTO short_codes (short_code, organization_id) VALUES (%s, %s)",
+            (shortcode, organization_id),
         )
+        # last_row_id = cursor.lastrowid
+        # print('Last row: ', last_row_id)
+        # cursor.execute("SELECT * FROM short_codes WHERE id = %s", (last_row_id,))
+        # row = cursor.fetchone()
+        conn.commit()
+        conn.close()
+        return True
     except Error as e:
         print(e)
+        conn.rollback()
+        return False
 
-    last_row_id = cursor.lastrowid
-    cursor.execute("SELECT * FROM short_codes WHERE id = ?", (last_row_id,))
-    row = cursor.fetchone()
-    print(row["short_code"])
-
-    conn.commit()
-    conn.close()
-    return row
+    # print(f"row: {row}")
+    # return row
 
 
 def get_short_codes(organization):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
         cursor.execute(
-            "SELECT * FROM short_codes JOIN organizations ON short_codes.organization_id = organizations.id WHERE organizations.name = ?",
+            "SELECT * FROM short_codes JOIN organizations ON short_codes.organization_id = organizations.id WHERE organizations.name ilike %s",
             (organization,),
         )
         conn.commit()
@@ -237,41 +287,43 @@ def get_short_codes(organization):
         print(e)
     results = cursor.fetchall()
     print(results)
+    print(f"retrieved shortcodes: {results}")
     conn.close()
     return results
 
 
 def get_short_code(shortcode):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
         cursor.execute(
             """
             SELECT *
-            FROM short_code_files scf
-            JOIN short_codes as sc, files as f
-            ON scf.id = sc.id
-            WHERE sc.short_code = ?
-            AND f.id = scf.file_id;""",
+            FROM short_code_files as scf
+            JOIN short_codes as sc ON scf.short_code_id = sc.id
+            JOIN files as f ON scf.file_id = f.id
+            WHERE sc.short_code = %s;
+            """,
             (shortcode,),
         )
+        result = cursor.fetchone()
         conn.commit()
     except Error as e:
         print(e)
-    result = cursor.fetchone()
+    print("Result: ", result)
     conn.close()
     return result
 
 
 def delete_short_code(id):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
-        cursor.execute("DELETE FROM short_codes WHERE id = ? RETURNING *", (id))
+        cursor.execute("DELETE FROM short_codes WHERE id = %s RETURNING *", (id))
         row = cursor.fetchone()
     except Error as e:
         print(e)
@@ -283,74 +335,116 @@ def delete_short_code(id):
 
 # FILES
 def add_file(file):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "SELECT id FROM organizations WHERE name = ?", (file["organization"],)
+            "SELECT id FROM organizations WHERE name ilike %s", (file["organization"],)
         )
         found_organization = cursor.fetchone()
         cursor.execute(
-            "INSERT INTO files (name, organization_id, description, weaviate_class) VALUES (?, ?, ?, ?)",
+            "INSERT INTO files (name, organization_id, weaviate_class) VALUES (%s, %s, %s)",
             (
                 file["name"],
                 found_organization["id"],
-                file["description"],
                 file["weaviate_class"],
             ),
         )
         last_row_id = cursor.lastrowid
-        cursor.execute("SELECT * FROM files WHERE id = ?", (last_row_id,))
+        cursor.execute("SELECT * FROM files WHERE id = %s", (last_row_id,))
+        status = True
     except Error as e:
         print(e)
-    row = cursor.fetchone()
+        status = False
+    
     print(f"Added file {file['name']}")
 
     conn.commit()
     conn.close()
-    return row
+    return status
 
+
+# def add_file_to_short_code(short_code, file_id):
+#     conn = create_connection()
+#     # conn.row_factory = sqlite3.Row
+#     cursor = conn.cursor()
+
+#     try:
+#         found_short_code = cursor.execute(
+#             "SELECT id FROM short_codes WHERE short_code=%s", (short_code,)
+#         ).fetchone()
+#         if not found_short_code:
+#             cursor.execute(
+#                 "INSERT INTO short_code_files (short_code_id, file_id) VALUES (%s, %s)",
+#                 (short_code, file_id),
+#             )
+#             conn.commit()
+#             last_row_id = cursor.lastrowid
+#             cursor.execute(
+#                 "SELECT * FROM short_code_files WHERE id = %s", (last_row_id,)
+#             )
+#             print(f"{short_code}")
+#     except Error as e:
+#         print(e)
+#     row = cursor.fetchone()
+#     conn.close()
+#     return row
 
 def add_file_to_short_code(short_code, file_id):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
     cursor = conn.cursor()
 
     try:
-        found_short_code = cursor.execute(
-            "SELECT id FROM short_codes WHERE short_code=?", (short_code,)
-        ).fetchone()
-        if not found_short_code:
+        print(f"file shortcode to add: {short_code}")
+        print(f"file id to add: {file_id}")
+        cursor.execute(
+            "SELECT id FROM short_codes WHERE short_code=%s", (short_code,)
+        )
+        found_short_code = cursor.fetchone()
+        if found_short_code:
+            print('Found', short_code)
+        else:
+            print('not found ', short_code)
+        cursor.execute(
+            "SELECT id FROM files WHERE name=%s", (file_id,)
+        )
+        found_file = cursor.fetchone()
+        if found_short_code and found_file:
+            print(found_short_code, found_file)
             cursor.execute(
-                "INSERT INTO short_code_files (short_code_id, file_id) VALUES (?, ?)",
-                (short_code, file_id),
+                "INSERT INTO short_code_files (short_code_id, file_id) VALUES (%s, %s)",
+                (found_short_code['id'], found_file['id']),  # Use found_short_code[0] as short_code_id and found_file[0] as file_id
             )
             conn.commit()
             last_row_id = cursor.lastrowid
             cursor.execute(
-                "SELECT * FROM short_code_files WHERE id = ?", (last_row_id,)
+                "SELECT * FROM short_code_files WHERE id = %s", (last_row_id,)
             )
             print(f"{short_code}")
+            row = cursor.fetchone()  # Move the fetchone() call here
     except Error as e:
         print(e)
-    row = cursor.fetchone()
+        row = None  # Set row to None if an error occurs
     conn.close()
     return row
 
 
+
 def add_message(message, organization, shortcode, areas):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "SELECT * FROM short_codes JOIN organizations ON short_codes.short_code = ?",
+            # "SELECT * FROM short_codes JOIN organizations ON short_codes.short_code = %s",
+            "SELECT * FROM short_codes WHERE short_code = %s",
             (shortcode,),
         )
         found_shortcode = cursor.fetchone()
+        print(found_shortcode)
         cursor.execute(
-            "INSERT INTO messages (content, organization_id, shortcode_id, areas) VALUES (?, ?, ?, ?)",
+            "INSERT INTO messages (content, organization_id, shortcode_id, areas) VALUES (%s, %s, %s, %s)",
             (
                 message,
                 found_shortcode["organization_id"],
@@ -359,31 +453,19 @@ def add_message(message, organization, shortcode, areas):
             ),
         )
         conn.commit()
-        last_row_id = cursor.lastrowid
-        print(f"message: {message}")
-        cursor.execute(
-            """
-            SELECT *
-            FROM messages m
-            JOIN areas a ON m.areas LIKE '%' || a.name || '%'
-            WHERE m.id = ?""",
-            (last_row_id,),
-        )
 
     except Error as e:
         print(e)
-    row = cursor.fetchall()
     conn.close()
-    return row
 
 
 def get_messages(organization):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "SELECT * FROM messages JOIN organizations ON messages.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.name = ?",
+            "SELECT * FROM messages JOIN organizations ON messages.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.name = %s",
             (organization,),
         )
     except Error as e:
@@ -395,8 +477,8 @@ def get_messages(organization):
 
 
 def get_areas():
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT * FROM areas")
@@ -408,18 +490,69 @@ def get_areas():
     return rows
 
 
-def get_files(organization):
-    conn = create_connection(r"db\connected.db")
-    conn.row_factory = sqlite3.Row
+# def get_files(organization):
+#     conn = create_connection()
+#     # conn.row_factory = sqlite3.Row
+#     cursor = conn.cursor()
+#     try:
+#         cursor.execute(
+#             "SELECT files.name, short_codes.short_code FROM short_code_files JOIN organizations,files,short_codes ON organizations.id = files.organization_id WHERE organizations.name = %s",
+#             # "SELECT files.name, short_codes.short_code FROM short_code_files JOIN organizations ON short_code_files.organization_id = organizations.id JOIN files ON short_code_files.file_id = files.id JOIN short_codes ON short_code_files.short_code_id = short_codes.id WHERE organizations.name = %s",
+
+#             (organization,),
+#         )
+#     except Error as e:
+#         print(e)
+#     rows = cursor.fetchall()
+#     print(rows)
+#     conn.close()
+#     return rows
+
+def get_files(organization_id):
+    conn = create_connection()
+    cursor = conn.cursor()
+    try:
+        # cursor.execute(
+        #     "SELECT * FROM files JOIN organizations ON files.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.id = %s",
+        #     "SELECT * FROM files JOIN organizations ON files.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.id = %s",
+        #     (organization_id,),
+        # )
+        cursor.execute(
+            """
+            SELECT sc.short_code, f.name
+            FROM short_codes sc
+            JOIN short_code_files scf ON sc.id = scf.short_code_id
+            JOIN files f ON f.id = scf.file_id
+            WHERE sc.organization_id = %s
+            """,
+        (organization_id,))
+        joined_data = cursor.fetchall()
+        print(joined_data)
+    except Error as e:
+        print(e)
+    # rows = cursor.fetchall()
+    # print(rows)
+    conn.close()
+    return joined_data
+
+
+def insert_new_number(area_name, numbers):
+    conn = create_connection()
+    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "SELECT files.name, short_codes.short_code FROM short_code_files JOIN organizations,files,short_codes ON organizations.id = files.organization_id WHERE organizations.name = ?",
-            (organization,),
+            """
+            UPDATE areas SET numbers = CONCAT(numbers, ',', %s) WHERE name = %s;
+            """,
+            (numbers, area_name)
         )
+        conn.commit()
+        print(f"Numbers added successfully")
+        return True
     except Error as e:
         print(e)
-    rows = cursor.fetchall()
-    print(rows)
+
+    conn.commit()
     conn.close()
-    return rows
+

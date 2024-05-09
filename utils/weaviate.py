@@ -31,8 +31,10 @@ def ask_question(vectorstore, llm, question, chat_history):
         llm,
         vectorstore.as_retriever(),
     )
+    
+    appended_question = f"DON'T ANSWER '{question}' IF IT'S NOT RELATED TO THE DOCUMENT and summarize my answer in a MAXIMUM of 130 characters ONLY. DO NOT SURPASS THE 130 CHARACTERS MARK. "
 
-    result = qa({"question": question, "chat_history": chat_history})
+    result = qa({"question": appended_question, "chat_history": chat_history})
     chat_history.append((question, result["answer"]))
     qa = None
     return result["answer"]
