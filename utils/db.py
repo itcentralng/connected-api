@@ -13,14 +13,12 @@ def create_connection():
     conn = None
     try:
         # conn = sqlite3.connect(db_file)
-        url = os.environ.get("DBURL")
-        parsed_url = urlparse(url)
+        user = os.environ.get("DB_USERNAME")
+        password = os.environ.get("DB_PASSWORD")
+        host = os.environ.get("DB_HOST")
+        port = os.environ.get("DB_PORT")
         conn = psycopg2.connect(
-            dbname=parsed_url.path[1:],
-            user=parsed_url.username,
-            password=parsed_url.password,
-            host=parsed_url.hostname,
-            port=parsed_url.port,
+            user=user, password=password, host=host, port=port, database="postgres",
             cursor_factory=psycopg2.extras.RealDictCursor,  # Return rows as dictionaries
 
         )
