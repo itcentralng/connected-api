@@ -26,8 +26,7 @@ origins = [
     "http://localhost",
     "http://localhost:5173",
     "*",
-    "https://connected-cohere-frontend.onrender.com",
-    "https://connected-api-lja8.onrender.com",
+    "https://www.connectedai.net",
 ]
 
 app.add_middleware(
