@@ -59,11 +59,12 @@ class AddOrganisation(BaseModel):
 @app.post("/organization")
 def login_organization(organization: AddOrganisation):
     result = db.get_organization(organization.email)
-    # print(result)
+    print(result["password"])
+    print("organization password",organization.password)
     try:
-        if result:
-            if result["password"] == organization.password:
-                return result
+        if result["password"] == organization.password:
+            return result
+        raise HTTPException(status_code=500, detail="Wrong credentials entered")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

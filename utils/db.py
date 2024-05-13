@@ -1,6 +1,7 @@
 # WILL USE AN ORM INSTEAD
 # import sqlite3
 # from sqlite3 import Error
+from fastapi import HTTPException
 import psycopg2
 from psycopg2 import Error
 from urllib.parse import urlparse
@@ -121,22 +122,6 @@ def insert_dummy_data():
     cursor = conn.cursor()
     try:
         cursor.execute(
-            """INSERT INTO organizations (name, address, description, email,password) VALUES 
-            (
-                'WHO',
-                '123 Main St.',
-                'We champion health and a better future for all. Dedicated to the well-being of all people and guided by science, the World Health Organization leads and champions global efforts to give everyone, everywhere an equal chance to live a healthy life.',
-                'info@who.com',
-                'password'),
-            (
-                'Globex Corp',
-                '456 Elm St.',
-                'An imaginary company',
-                'info@globex.com',
-                'passowrd');
-            """
-        )
-        cursor.execute(
             """
             INSERT INTO areas (name, numbers) VALUES 
             ('zaria - Kaduna state','+2348162577778');
@@ -193,9 +178,10 @@ def get_organization(email: str):
         cursor.execute("SELECT * FROM organizations WHERE email = %s", (email,))
         # conn.commit()
     except Error as e:
-        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
     result = cursor.fetchone()
     print(f"Organization with email {email}")
+    # print(result)
     conn.close()
     # print(result)
     
