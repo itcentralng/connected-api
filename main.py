@@ -341,11 +341,11 @@ async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
     return {"answer": file.filename, "orgn": organization}
 
 
-@app.get("/initdb")
-async def init_db(all: bool = False):
-    db.init_db()
-    db.insert_dummy_data()
-    if all:
-        wv_client.schema.delete_all()
-        print("Cleared Weaviate DB")
-    return {"msg": "DB Initialization successfull"}
+# @app.get("/initdb")
+# async def init_db(all: bool = False):
+#     db.init_db()
+#     db.insert_dummy_data()
+#     if all:
+#         wv_client.schema.delete_all()
+#         print("Cleared Weaviate DB")
+#     return {"msg": "DB Initialization successfull"}
