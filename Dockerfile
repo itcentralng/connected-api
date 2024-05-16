@@ -1,5 +1,7 @@
 FROM python:3.11
 
+WORKDIR /
+
 COPY requirements.txt .
 
 RUN pip install -r requirements.txt
@@ -43,3 +45,4 @@ ENV WEAVIATE_API_KEY=$WEAVIATE_API_KEY
 ENV WEAVIATE_URL=$WEAVIATE_URL
 
 EXPOSE 80
+
