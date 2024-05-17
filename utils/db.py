@@ -19,7 +19,6 @@ def create_connection():
             cursor_factory=psycopg2.extras.RealDictCursor,  # Return rows as dictionaries
 
         )
-        print("Success")
         return conn
     except Exception as e:
         raise HTTPException(status_code=500, detail=(str(e)))
@@ -289,7 +288,6 @@ def add_file(file):
         print(e)
         status = False
     
-    print(f"Added file {file['name']}")
 
     conn.commit()
     conn.close()
@@ -302,34 +300,29 @@ def add_file_to_short_code(short_code, file_id):
     cursor = conn.cursor()
 
     try:
-        print(f"file shortcode to add: {short_code}")
-        print(f"file id to add: {file_id}")
         cursor.execute(
             "SELECT id FROM short_codes WHERE short_code=%s", (short_code,)
         )
         found_short_code = cursor.fetchone()
-        if found_short_code:
-            print('Found', short_code)
-        else:
-            print('not found ', short_code)
+        # if found_short_code:
+        #     print('Found', short_code)
+        # else:
+        #     print('not found ', short_code)
         cursor.execute(
             "SELECT id FROM files WHERE name=%s", (file_id,)
         )
         found_file = cursor.fetchone()
-        print("here", found_short_code, found_file)
         if found_short_code and found_file:
-            print(found_short_code, found_file)
             cursor.execute(
                 "INSERT INTO short_code_files (short_code_id, file_id) VALUES (%s, %s)",
-                (found_short_code['id'], found_file['id']),  # Use found_short_code[0] as short_code_id and found_file[0] as file_id
+                (found_short_code['id'], found_file['id']),  # Use found_short_code["id"] as short_code_id and found_file["id"] as file_id
             )
             conn.commit()
             last_row_id = cursor.lastrowid
             cursor.execute(
                 "SELECT * FROM short_code_files WHERE id = %s", (last_row_id,)
             )
-            print(f"{short_code}")
-            row = cursor.fetchone()  # Move the fetchone() call here
+            row = cursor.fetchone()  
     except Error as e:
         print(e)
         row = None  # Set row to None if an error occurs
@@ -406,7 +399,6 @@ def get_files(organization_id):
             """,
         (organization_id,))
         joined_data = cursor.fetchall()
-        print(joined_data)
     except Error as e:
         print(e)
     conn.close()

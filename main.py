@@ -112,9 +112,7 @@ async def create_upload_file(organization: str, file: UploadFile = Form(...), sh
         " ", ""
     ).replace("-", "")
     classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
-    print(classes)
-    print(file.filename)
-    print(f"shortcode is: {shortcode}")
+
     # DB Operations
     added_file = db.add_file(
         {
@@ -123,14 +121,10 @@ async def create_upload_file(organization: str, file: UploadFile = Form(...), sh
             "weaviate_class": wv_class_name,
         }
     )
-    print('FILE ADDED: ', added_file)
     if added_file:
         added_shortcode = db.add_short_code(shortcode, organization_id)
-        print("added shortcode", added_shortcode)
-        # print(added_file["weaviate_class"])
         if added_shortcode:
             db.add_file_to_short_code(shortcode, file.filename)
-            print("Added file to shortcode")
 
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
@@ -164,7 +158,6 @@ async def delete_files(organization: str, filename: str):
 @app.get("/{organization_id}/files")
 async def get_short_codes(organization_id: int):
     results = db.get_files(organization_id)
-    print(results)
     return results
 
 
