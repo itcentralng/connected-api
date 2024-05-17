@@ -1,19 +1,15 @@
-# WILL USE AN ORM INSTEAD
-# import sqlite3
-# from sqlite3 import Error
-from fastapi import HTTPException
-import psycopg2
-from psycopg2 import Error
-from urllib.parse import urlparse
-import os
+# using postgreSQL
 
+from fastapi import HTTPException
+from psycopg2 import Error
+from werkzeug.security import generate_password_hash
+import os
 import psycopg2.extras
 
 
 def create_connection():
     conn = None
     try:
-        # conn = sqlite3.connect(db_file)
         user = os.environ.get("DB_USERNAME")
         password = os.environ.get("DB_PASSWORD")
         host = os.environ.get("DB_HOST")
@@ -23,20 +19,18 @@ def create_connection():
             cursor_factory=psycopg2.extras.RealDictCursor,  # Return rows as dictionaries
 
         )
+        print("Success")
         return conn
-    except Error as e:
-        print(e)
-    # finally:
-    #     if conn:
-    #         return conn
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
+
 
 
 # SETUP DB
 def clear_db():
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-
+    
     try:
         cursor.execute(
             """
@@ -49,8 +43,8 @@ def clear_db():
         )
         conn.commit()
         print(f"DB cleared successfully")
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
 
     conn.commit()
     conn.close()
@@ -58,7 +52,6 @@ def clear_db():
 
 def init_db():
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     # Clear and create the organizations table
     clear_db()
@@ -110,15 +103,14 @@ def init_db():
         )
         conn.commit()
         print(f"DB initialized successfully")
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
 
     conn.close()
 
 
 def insert_dummy_data():
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -129,8 +121,8 @@ def insert_dummy_data():
         )
         conn.commit()
         print(f"DB Populated successfully")
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
 
     conn.close()
 
@@ -138,30 +130,28 @@ def insert_dummy_data():
 # ORGANIZATIONS
 def add_organization(organization):
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     error = None
     try:
+        hashed_password = generate_password_hash(organization.password)
         cursor.execute(
             "INSERT INTO organizations (name, email, password, address, description) VALUES (%s, %s, %s, %s, %s)",
             (
                 organization.name,
                 organization.email,
-                organization.password,
+                hashed_password,
                 organization.address,
                 organization.description,
             ),
         )
         conn.commit()
-    except Error as e:
-        print(e)
-        error = e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
 
     last_row_id = cursor.lastrowid
     if last_row_id:
         cursor.execute("SELECT * FROM organizations WHERE id = %s", (last_row_id,))
         row = cursor.fetchone()
-        print(f'{row["name"]}')
         conn.close()
         return row
     else:
@@ -171,19 +161,14 @@ def add_organization(organization):
 
 def get_organization(email: str):
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
         cursor.execute("SELECT * FROM organizations WHERE email = %s", (email,))
-        # conn.commit()
-    except Error as e:
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     result = cursor.fetchone()
-    print(f"Organization with email {email}")
-    # print(result)
     conn.close()
-    # print(result)
     
     if result:
         if isinstance(result, tuple):
@@ -201,33 +186,6 @@ def get_organization(email: str):
     else:
         return None
         
-    # return result
-
-
-# # SHORT CODES
-# def add_short_code(shortcode, organization_id):
-#     conn = create_connection()
-#     # conn.row_factory = sqlite3.Row
-#     cursor = conn.cursor()
-
-#     try:
-#         print(f"added shortcode is {shortcode}")
-#         cursor.execute(
-#             "INSERT INTO short_codes (short_code, organization_id) VALUES (%s, %s)",
-#             (shortcode, organization_id),
-#         )
-#     except Error as e:
-#         print(e)
-#         return None
-
-#     last_row_id = cursor.lastrowid
-#     cursor.execute("SELECT * FROM short_codes WHERE id = %s", (last_row_id,))
-#     row = cursor.fetchone()
-#     # print(row["short_code"])
-
-#     conn.commit()
-#     conn.close()
-#     return row
 
 
 # SHORT CODES
@@ -240,10 +198,7 @@ def add_short_code(shortcode, organization_id):
             "INSERT INTO short_codes (short_code, organization_id) VALUES (%s, %s)",
             (shortcode, organization_id),
         )
-        # last_row_id = cursor.lastrowid
-        # print('Last row: ', last_row_id)
-        # cursor.execute("SELECT * FROM short_codes WHERE id = %s", (last_row_id,))
-        # row = cursor.fetchone()
+
         conn.commit()
         conn.close()
         return True
@@ -252,13 +207,10 @@ def add_short_code(shortcode, organization_id):
         conn.rollback()
         return False
 
-    # print(f"row: {row}")
-    # return row
 
 
 def get_short_codes(organization):
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
@@ -267,18 +219,15 @@ def get_short_codes(organization):
             (organization,),
         )
         conn.commit()
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
     results = cursor.fetchall()
-    print(results)
-    print(f"retrieved shortcodes: {results}")
     conn.close()
     return results
 
 
 def get_short_code(shortcode):
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
@@ -294,23 +243,21 @@ def get_short_code(shortcode):
         )
         result = cursor.fetchone()
         conn.commit()
-    except Error as e:
-        print(e)
-    print("Result: ", result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
     conn.close()
     return result
 
 
 def delete_short_code(id):
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
         cursor.execute("DELETE FROM short_codes WHERE id = %s RETURNING *", (id))
         row = cursor.fetchone()
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
 
     conn.commit()
     conn.close()
@@ -349,31 +296,6 @@ def add_file(file):
     return status
 
 
-# def add_file_to_short_code(short_code, file_id):
-#     conn = create_connection()
-#     # conn.row_factory = sqlite3.Row
-#     cursor = conn.cursor()
-
-#     try:
-#         found_short_code = cursor.execute(
-#             "SELECT id FROM short_codes WHERE short_code=%s", (short_code,)
-#         ).fetchone()
-#         if not found_short_code:
-#             cursor.execute(
-#                 "INSERT INTO short_code_files (short_code_id, file_id) VALUES (%s, %s)",
-#                 (short_code, file_id),
-#             )
-#             conn.commit()
-#             last_row_id = cursor.lastrowid
-#             cursor.execute(
-#                 "SELECT * FROM short_code_files WHERE id = %s", (last_row_id,)
-#             )
-#             print(f"{short_code}")
-#     except Error as e:
-#         print(e)
-#     row = cursor.fetchone()
-#     conn.close()
-#     return row
 
 def add_file_to_short_code(short_code, file_id):
     conn = create_connection()
@@ -394,6 +316,7 @@ def add_file_to_short_code(short_code, file_id):
             "SELECT id FROM files WHERE name=%s", (file_id,)
         )
         found_file = cursor.fetchone()
+        print("here", found_short_code, found_file)
         if found_short_code and found_file:
             print(found_short_code, found_file)
             cursor.execute(
@@ -415,18 +338,16 @@ def add_file_to_short_code(short_code, file_id):
 
 
 
+
 def add_message(message, organization, shortcode, areas):
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute(
-            # "SELECT * FROM short_codes JOIN organizations ON short_codes.short_code = %s",
             "SELECT * FROM short_codes WHERE short_code = %s",
             (shortcode,),
         )
         found_shortcode = cursor.fetchone()
-        print(found_shortcode)
         cursor.execute(
             "INSERT INTO messages (content, organization_id, shortcode_id, areas) VALUES (%s, %s, %s, %s)",
             (
@@ -438,69 +359,43 @@ def add_message(message, organization, shortcode, areas):
         )
         conn.commit()
 
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
     conn.close()
 
 
 def get_messages(organization):
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute(
             "SELECT * FROM messages JOIN organizations ON messages.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.name = %s",
             (organization,),
         )
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
     rows = cursor.fetchall()
-    print(rows)
     conn.close()
     return rows
 
 
 def get_areas():
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT * FROM areas")
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
     rows = cursor.fetchall()
-    print(rows)
     conn.close()
     return rows
 
-
-# def get_files(organization):
-#     conn = create_connection()
-#     # conn.row_factory = sqlite3.Row
-#     cursor = conn.cursor()
-#     try:
-#         cursor.execute(
-#             "SELECT files.name, short_codes.short_code FROM short_code_files JOIN organizations,files,short_codes ON organizations.id = files.organization_id WHERE organizations.name = %s",
-#             # "SELECT files.name, short_codes.short_code FROM short_code_files JOIN organizations ON short_code_files.organization_id = organizations.id JOIN files ON short_code_files.file_id = files.id JOIN short_codes ON short_code_files.short_code_id = short_codes.id WHERE organizations.name = %s",
-
-#             (organization,),
-#         )
-#     except Error as e:
-#         print(e)
-#     rows = cursor.fetchall()
-#     print(rows)
-#     conn.close()
-#     return rows
 
 def get_files(organization_id):
     conn = create_connection()
     cursor = conn.cursor()
     try:
-        # cursor.execute(
-        #     "SELECT * FROM files JOIN organizations ON files.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.id = %s",
-        #     "SELECT * FROM files JOIN organizations ON files.organization_id = organizations.id JOIN short_codes ON shortcode_id = short_codes.id WHERE organizations.id = %s",
-        #     (organization_id,),
-        # )
+
         cursor.execute(
             """
             SELECT sc.short_code, f.name
@@ -514,15 +409,13 @@ def get_files(organization_id):
         print(joined_data)
     except Error as e:
         print(e)
-    # rows = cursor.fetchall()
-    # print(rows)
     conn.close()
     return joined_data
 
 
+
 def insert_new_number(area_name, numbers):
     conn = create_connection()
-    # conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -533,9 +426,8 @@ def insert_new_number(area_name, numbers):
         )
         conn.commit()
         print(f"Numbers added successfully")
-        return True
-    except Error as e:
-        print(e)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
 
     conn.commit()
     conn.close()

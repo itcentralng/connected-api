@@ -14,6 +14,7 @@ from utils.weaviate import ask_question
 from utils import db
 from utils.africastalking import AfricasTalking
 import urllib.parse
+from werkzeug.security import check_password_hash
 import os
 
 # initialize database on first run
@@ -43,30 +44,9 @@ wv_client = weaviate.Client(
     additional_headers={"X-Cohere-Api-Key": os.environ.get("COHERE_API_KEY")},
 )
 
-
-@app.get("/")
-def read_root():
-    return {"app": "connected", "status": "ok"}
-
-
-# ORGANIZATIONS
-class AddOrganisation(BaseModel):
+class LoginOrganization(BaseModel):
     email: str
     password: str
-
-
-@app.post("/organization")
-def login_organization(organization: AddOrganisation):
-    result = db.get_organization(organization.email)
-    print(result["password"])
-    print("organization password",organization.password)
-    try:
-        if result["password"] == organization.password:
-            return result
-        raise HTTPException(status_code=500, detail="Wrong credentials entered")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 class Organization(BaseModel):
     name: str
@@ -74,21 +54,55 @@ class Organization(BaseModel):
     password: str
     address: str
     description: str
+    password: str
+
+class ShortCode(BaseModel):
+    short_code: int
+    organization_id: int
+
+
+class FileInfo(BaseModel):
+    file_id: int
+
+class Sms(BaseModel):
+    shortcode: str
+
+class Message(BaseModel):
+    content: str
+    shortcode: str
+    areas: list
+
+
+class AreaAndNumbers(BaseModel):
+    area_name: str
+    numbers: str
+
+
+
+@app.get("/")
+def read_root():
+    return {"app": "connected", "status": "ok"}
 
 
 @app.post("/register")
 def register_org(organization: Organization):
-    added_organization = db.add_organization(organization)
-    return added_organization
+    try:
+        added_organization = db.add_organization(organization)
+        return added_organization
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=(str(e)))
 
 
-# class uploadFile(BaseModel):
-#     file: UploadFile = File(...)
-#     organization: str
-#     shortcode: str
-#     organization_id:str
-#     description: str
-    
+@app.post("/organization")
+def login_organization(organization: LoginOrganization):
+    result = db.get_organization(organization.email)
+    try:
+        if result and check_password_hash(result["password"], organization.password):
+            return result
+        raise HTTPException(status_code=401, detail="Wrong credentials entered")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/organization/{organization}/uploadfile")
@@ -112,9 +126,11 @@ async def create_upload_file(organization: str, file: UploadFile = Form(...), sh
     print('FILE ADDED: ', added_file)
     if added_file:
         added_shortcode = db.add_short_code(shortcode, organization_id)
+        print("added shortcode", added_shortcode)
         # print(added_file["weaviate_class"])
         if added_shortcode:
             db.add_file_to_short_code(shortcode, file.filename)
+            print("Added file to shortcode")
 
     if wv_class_name.upper() not in classes:
         wv_create_class(wv_client, wv_class_name)
@@ -139,7 +155,6 @@ async def create_upload_file(organization: str, file: UploadFile = Form(...), sh
     # return added_file
     return {}
 
-
 @app.post("organizations/{organization}/deletefile")
 async def delete_files(organization: str, filename: str):
     wv_client.schema.delete_class()
@@ -148,184 +163,90 @@ async def delete_files(organization: str, filename: str):
 
 @app.get("/{organization_id}/files")
 async def get_short_codes(organization_id: int):
-    print(organization_id)
     results = db.get_files(organization_id)
     print(results)
     return results
 
 
-# SHORT CODES
-class ShortCode(BaseModel):
-    short_code: int
-    organization_id: int
-
-
 @app.post("/{organization}/shortcode/add")
 def register_short_code(short_code: ShortCode, organization: str):
     added_short_code = db.add_short_code(short_code)
-    print(f"Added {add_message} for {organization}")
     return {"shortcode": added_short_code}
 
 
 @app.get("/{organization}/shortcodes")
 async def get_short_codes(organization: str):
     results = db.get_short_codes(organization)
-    print(f"shortcodes: {results}")
     return {"short_codes": results}
 
 
 @app.get("/{organization}/shortcode/{id}/delete")
 def register_short_code(id):
     removed_short_code = db.delete_short_code(id)
-    # ALSO REMOVE FILE
     return {"removed": removed_short_code}
 
 
-class FileInfo(BaseModel):
-    file_id: int
-
-class Sms(BaseModel):
-    shortcode: str
-
-# SMS
 @app.post("/sms")
 async def receive_sms(request: Request):
-    decoded_string = await request.body()
-    print(decoded_string)
-    parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
-    print(parsed_dict)
-    chat_history = []
-    result = db.get_short_code(parsed_dict["to"][0])
-    if result and parsed_dict["text"][0]:
-        vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
-        answer = ask_question(
-            vectorstore,
-            Cohere(temperature=0), 
-            parsed_dict["text"][0],
-            chat_history,
-        )
-        classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
-        print(classes)
-        print(parsed_dict)
-        print(answer)
-        AfricasTalking().send(parsed_dict["to"][0], answer, [parsed_dict["from"][0]])
-        return {"answer": answer}
-    else:
-        AfricasTalking().send(
-            parsed_dict["to"][0],
-            "Sorry we are having a technical issue. Try again later",
-            [parsed_dict["from"][0]],
-        )
-        print("Error: Short code does'nt exist")
+    try:
+        decoded_string = await request.body()
+        parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
+        chat_history = []
+        result = db.get_short_code(parsed_dict["to"][0])
+        if result and parsed_dict["text"][0]:
+            vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
+            answer = ask_question(
+                vectorstore,
+                Cohere(temperature=0), 
+                parsed_dict["text"][0],
+                chat_history,
+            )
+            classes = [row["class"].upper() for row in wv_client.schema.get()["classes"]]
+            AfricasTalking().send(parsed_dict["to"][0], answer, [parsed_dict["from"][0]])
+            return {"answer": answer}
+        else:
+            AfricasTalking().send(
+                parsed_dict["to"][0],
+                "Sorry we are having a technical issue. Try again later",
+                [parsed_dict["from"][0]],
+            )
+    
+    except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
-
-
-
-class Message(BaseModel):
-    content: str
-    shortcode: str
-    areas: list
-
-        # Send message to all numbers in the specified areas using AfricasTalking
-
-# @app.post("/{organization}/message/add")
-# async def add_message(message: Message):
     
 @app.post("/{organization}/message/add")
 def add_message(message: Message, organization: str):
-    # try:
-    #     added_message = db.add_message(
-    #     message.content, organization, message.shortcode, message.areas
-    #     )
-    #     print("Message areas: ", message.shortcode)
-    #     numbers = [row["numbers"].split(",") for row in added_message]
-    #     all_numbers = []
-    #     for nums in numbers:
-    #         all_numbers = [*all_numbers, *nums]
-    #     print(all_numbers)
-    #     print(message.content)
-    #     AfricasTalking().send(message.shortcode, message.content, all_numbers)
-    #     return {"msg": "successfully sent messages"}
-    
-    # except Exception as e:
-    #     # Log or handle the exception as needed
-    #     print("Error sending message:", e)
-    #     raise HTTPException(status_code=500, detail="Failed to send message")
-    # # get all numbers by selected areas
-    numbers = [row["numbers"].split(",") for row in db.get_areas()]
-    print("Numbers: ", numbers)
-    all_numbers = []
-    # merge all the numbers
-    for nums in numbers:
-        all_numbers = [*all_numbers, *nums]
-    print(all_numbers)
-    print(message.content)
-    # send message to all numbers
-    AfricasTalking().send(message.shortcode, message.content, all_numbers)
-    print("success")
+    try:
+        numbers = [row["numbers"].split(",") for row in db.get_areas()]
+        all_numbers = []
 
-    # add message record to database
-    added_message = db.add_message(
-        message.content, organization, message.shortcode, message.areas
-    )
-    print("Added message: ", added_message)
-    # if "error" not in added_message:
-    #     return {"msg": "successfully sent message"}
-    # return {"error": added_message["error"]}
-
-    
-    # # try:
-    #     # Extract data from the message object
-    #     content = message.content
-    #     shortcode = message.shortcode
-    #     areas = message.areas
-    #     all_numbers = [number for area in areas for number in area.get("numbers").split(",")]
-    #     # print(areas)
-      
-    #     # print(areas)
+        for nums in numbers:
+            all_numbers = [*all_numbers, *nums]
         
-    #     print(all_numbers)
+        AfricasTalking().send(message.shortcode, message.content, all_numbers)
+
+        db.add_message(
+            message.content, organization, message.shortcode, message.areas
+        )
         
-    #     # Split the numbers and iterate over each
-    #     all_numbers = [number for numbers_str in areas for number in numbers_str.split(",")]
-    #     print(all_numbers)        
-
-    #     # Initialize AfricasTalking instance
-    #     africas_talking = AfricasTalking()
-
-    #     # Send message to each number
-    #     for recipient in all_numbers:
-    #         africas_talking.send(shortcode, content, [recipient])
-
-    #     # Return success message
-    #     return {"msg": "Successfully sent messages"}
-    # except Exception as e:
-    #     # Log or handle the exception as needed
-    #     print("Error sending message:", e)
-    #     raise HTTPException(status_code=500, detail="Failed to send message")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to send message")
 
 
 @app.get("/{organization}/messages/")
 def get_messages(organization: str):
     if organization != "":
         results = db.get_messages(organization)
-        print(results)
         return results
     else:
-        print("Organization not provided")
         return {"msg": "Organization not provided"}
 
 
 @app.get("/areas")
 def get_areas():
     areas = db.get_areas()
-    print(areas)
     return areas
-
-
-class AreaAndNumbers(BaseModel):
-    area_name: str
-    numbers: str
 
 
 @app.post("/add_numbers_to_area")

@@ -1,16 +1,20 @@
 import json
+from fastapi import HTTPException
 from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 
 
 def wv_upload_doc(wv_client, doc, class_name):
-    wv_client.batch.configure(batch_size=300)
-    with wv_client.batch as batch:
-        for i, d in enumerate(doc):
-            print(f"importing question: {i+1}")
-            properties = {"content": d.page_content}
-            batch.add_data_object(data_object=properties, class_name=class_name)
-    print(f"File uploaded successfully")
+    try:
+        wv_client.batch.configure(batch_size=300)
+        with wv_client.batch as batch:
+            for i, d in enumerate(doc):
+                print(f"importing question: {i+1}")
+                properties = {"content": d.page_content}
+                batch.add_data_object(data_object=properties, class_name=class_name)
+        print(f"File uploaded successfully")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed add file")
 
 
 def wv_create_class(wv_client, class_name):
