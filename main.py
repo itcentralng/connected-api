@@ -272,47 +272,49 @@ def get_areas():
     return areas
 
 
-@app.get("/numbers")
-async def get_numbers():
-    try:
-        phone_numbers = db.get_phone_numbers()
-        return {"numbers": phone_numbers}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.get("/numbers")
+# async def get_numbers():
+#     try:
+#         phone_numbers = db.get_phone_numbers()
+#         return {"numbers": phone_numbers}
+#     except HTTPException as e:
+#         raise e
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 
-@app.post("/add_numbers_to_area")
-async def add_numbers_to_area(area_and_numbers: AreaAndNumbers):
-    if db.insert_new_numbers(area_and_numbers.area_name, area_and_numbers.numbers):
-        return {"message": f"Numbers added to area '{area_and_numbers.area_name}' successfully"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to add numbers to the database")
+# @app.post("/add_numbers_to_area")
+# async def add_numbers_to_area(area_and_numbers: AreaAndNumbers):
+#     if db.insert_new_numbers(area_and_numbers.area_name, area_and_numbers.numbers):
+#         return {"message": f"Numbers added to area '{area_and_numbers.area_name}' successfully"}
+#     else:
+#         raise HTTPException(status_code=500, detail="Failed to add numbers to the database")
     
 
     
-@app.post("/delete_number_from_area")
-async def delete_number_from_area(area_and_number: AreaAndNumber):
-    try:
-        if db.delete_number(area_and_number.area_name, area_and_number.number):
-            return {"message": f"Number '{area_and_number.number}' deleted from area '{area_and_number.area_name}' successfully"}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to delete number from the database")
-    except HTTPException as http_exc:
-        logging.error(f"HTTP error: {http_exc.detail}")
-        raise
-    except Exception as exc:
-        logging.error(f"Unexpected error: {str(exc)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+# @app.post("/delete_number_from_area")
+# async def delete_number_from_area(area_and_number: AreaAndNumber):
+#     try:
+#         if db.delete_number(area_and_number.area_name, area_and_number.number):
+#             return {"message": f"Number '{area_and_number.number}' deleted from area '{area_and_number.area_name}' successfully"}
+#         else:
+#             raise HTTPException(status_code=500, detail="Failed to delete number from the database")
+#     except HTTPException as http_exc:
+#         logging.error(f"HTTP error: {http_exc.detail}")
+#         raise
+#     except Exception as exc:
+#         logging.error(f"Unexpected error: {str(exc)}", exc_info=True)
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
+    
 
-@app.post("/add_area")
-async def add_area(area: Area):
-    if db.add_area(area.name, area.numbers):
-        return {"message": f"Area '{area.name}' added successfully with numbers: {area.numbers}"}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to add area to the database")
+
+# @app.post("/add_area")
+# async def add_area(area: Area):
+#     if db.add_area(area.name, area.numbers):
+#         return {"message": f"Area '{area.name}' added successfully with numbers: {area.numbers}"}
+#     else:
+#         raise HTTPException(status_code=500, detail="Failed to add area to the database")
 
 
 # @app.post("/test")
