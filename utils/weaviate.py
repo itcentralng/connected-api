@@ -42,7 +42,7 @@ def ask_question(vectorstore, llm, question, chat_history):
     template = (
         f"""
             {system_instruction}
-            IGNORE QUESTION '{question}' IF IT'S NOT RELATED TO THE DOCUMENT PROVIDED 
+            IGNORE QUESTION '{question}' IF AND ONLY IF IT'S NOT RELATED TO THE DOCUMENT PROVIDED 
             AND SUMMARISE EVERYTHING IN NOT MORE THAN 150 CHARACTERS
         """
     )
@@ -57,7 +57,7 @@ def ask_question(vectorstore, llm, question, chat_history):
         condense_question_prompt=CONDENSEprompt,
     )
     
-    appended_question = f"SUMMARIZE YOUR ANSWER IN NOT MORE THAN 140 CHARACTERS AND REPLY QUESTION '{question}' WITH 'I CANNOT ANSWER THIS QUESTION AS IT IS NOT RELATED TO THE CONTEXT PROVIDED' IF IT'S NOT RELATED TO THE DOCUMENT."
+    appended_question = f"SUMMARIZE YOUR ANSWER IN NOT MORE THAN 140 CHARACTERS AND REPLY QUESTION '{question}' WITH 'I CANNOT ANSWER THIS QUESTION AS IT IS NOT RELATED TO THE CONTEXT PROVIDED' ONLY AND ONLY IF IT'S NOT RELATED TO THE DOCUMENT."
 
     result = qa({"question": appended_question, "chat_history": chat_history})
     chat_history.append((question, result["answer"]))
