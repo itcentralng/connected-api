@@ -1,5 +1,6 @@
 # using postgreSQL
 
+import logging
 from fastapi import HTTPException
 from psycopg2 import Error
 from werkzeug.security import generate_password_hash
@@ -406,23 +407,59 @@ def get_files(organization_id):
 
 
 
-def insert_new_number(area_name, numbers):
+# def insert_new_numbers(area_name, numbers):
+#     conn = create_connection()
+#     cursor = conn.cursor()
+#     try:
+#         cursor.execute(
+#             """
+#             UPDATE areas SET numbers = %s WHERE name = %s;
+#             """,
+#             (numbers, area_name)
+#         )
+#         print(f"Numbers added successfully")
+#         return True
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=(str(e)))
+    
+#     finally:
+#         conn.commit()
+#         conn.close()
+
+
+def insert_new_numbers(area_name, new_number):
     conn = create_connection()
     cursor = conn.cursor()
     try:
+        # Fetch the current numbers from the database
+        cursor.execute("SELECT numbers FROM areas WHERE name = %s", (area_name,))
+        result = cursor.fetchone()
+        if not result:
+            raise HTTPException(status_code=404, detail="Area not found")
+
+        current_numbers = result["numbers"]  # Extracting the numbers from the result
+
+        # Check if the current numbers are empty or not
+        if current_numbers:
+            # If not empty, append the new number to the existing numbers
+            updated_numbers = f"{current_numbers}, {new_number}"
+        else:
+            # If empty, just use the new number
+            updated_numbers = new_number
+
+        # Update the numbers in the database
         cursor.execute(
-            """
-            UPDATE areas SET numbers = CONCAT(numbers, ',', %s) WHERE name = %s;
-            """,
-            (numbers, area_name)
+            "UPDATE areas SET numbers = %s WHERE name = %s",
+            (updated_numbers, area_name)
         )
         conn.commit()
-        print(f"Numbers added successfully")
+        print(f"Number '{new_number}' added successfully to area '{area_name}'")
+        return True
     except Exception as e:
-        raise HTTPException(status_code=500, detail=(str(e)))
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
-    conn.commit()
-    conn.close()
 
 
 def get_phone_numbers():
@@ -452,6 +489,41 @@ def get_phone_numbers():
         raise HTTPException(status_code=500, detail=f"Error processing phone numbers: {str(e)}")
 
     return phone_numbers
+
+def delete_number(area_name, number):
+    conn = create_connection()
+    cursor = conn.cursor()
+    print("number: ",number)
+    try:
+        cursor.execute("SELECT numbers FROM areas WHERE name = %s", (area_name,))
+        result = cursor.fetchone()
+        if not result:
+            raise HTTPException(status_code=404, detail="Area not found")
+
+        current_numbers = result['numbers']  # Accessing by column name
+        numbers_list = current_numbers.split(',')
+
+        if number not in numbers_list:
+            raise HTTPException(status_code=404, detail=f"Number {number} not found in the area")
+
+        numbers_list.remove(number)
+        updated_numbers = ','.join(numbers_list)
+
+        cursor.execute(
+            "UPDATE areas SET numbers = %s WHERE name = %s",
+            (updated_numbers, area_name)
+        )
+        conn.commit()
+        logging.info(f"Number '{number}' deleted successfully from area '{area_name}'")
+    except Exception as e:
+        conn.rollback()
+        logging.error(f"Error deleting number: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+    return True
+
 
 
 def add_area(name: str, numbers: str) -> bool:
