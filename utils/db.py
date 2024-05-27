@@ -443,7 +443,8 @@ def get_phone_numbers():
     phone_numbers = []
     for row in results:
         numbers = row['numbers'].split(", ")
-        phone_numbers.extend(numbers)
+        cleaned_numbers = [number.strip() for number in numbers]
+        phone_numbers.extend(cleaned_numbers)
 
     return phone_numbers
 
