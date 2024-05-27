@@ -228,19 +228,25 @@ async def receive_sms(request: Request):
 @app.post("/{organization}/message/add")
 def add_message(message: Message, organization: str):
     try:
-        numbers = [row["numbers"].split(",") for row in db.get_areas()]
-        all_numbers = []
+        # numbers = [row["numbers"].split(",") for row in db.get_phone_numbers()]
+        numbers = db.get_phone_numbers()
+        # all_numbers = []
 
-        for nums in numbers:
-            all_numbers = [*all_numbers, *nums]
-        
-        AfricasTalking().send(message.shortcode, message.content, message.areas)
+        # for nums in numbers:
+        #     all_numbers = [*all_numbers.strip(), *nums.strip()]
+        # # print(all_numbers)
+        print(numbers)
+        AfricasTalking().send(message.shortcode, message.content, numbers)
 
         db.add_message(
             message.content, organization, message.shortcode, message.areas
         )
         
     except Exception as e:
+        # numbers = [row["numbers"].split(",") for row in db.get_phone_numbers()]
+        numbers = db.get_phone_numbers()
+        print(numbers)
+        # print(all_numbers)
         raise HTTPException(status_code=500, detail="Failed to send message")
 
 

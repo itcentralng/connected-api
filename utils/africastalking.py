@@ -17,6 +17,7 @@ class AfricasTalking:
     def send(self, sender, message, recipients):
         try:
             response = self.sms.send(message, recipients, sender)
+            print(f"message sent to {recipients}")
         except Exception as e:
             print(f"Houston, we have a problem: {e}")
             raise HTTPException(status_code=500, detail="Failed to send message")
