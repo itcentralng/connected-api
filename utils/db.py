@@ -424,3 +424,45 @@ def insert_new_number(area_name, numbers):
     conn.commit()
     conn.close()
 
+
+def get_phone_numbers():
+    conn = create_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT numbers FROM areas")
+        results = cursor.fetchall()
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    conn.close()
+
+    # Extract and flatten the phone numbers from the results
+    phone_numbers = []
+    for row in results:
+        numbers = row['numbers'].split(", ")
+        phone_numbers.extend(numbers)
+
+    return phone_numbers
+
+
+def add_area(name: str, numbers: str) -> bool:
+    conn = create_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO areas (name, numbers) VALUES (%s, %s);
+            """,
+            (name, numbers)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        print(e)
+        return False

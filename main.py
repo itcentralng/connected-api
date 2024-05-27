@@ -76,6 +76,11 @@ class Message(BaseModel):
 class AreaAndNumbers(BaseModel):
     area_name: str
     numbers: str
+    
+    
+class Area(BaseModel):
+    name: str
+    numbers: str
 
 
 
@@ -185,6 +190,19 @@ async def receive_sms(request: Request):
         decoded_string = await request.body()
         parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
         chat_history = []
+        
+        phone_numbers = db.get_phone_numbers()
+        sender_number = parsed_dict["from"][0] 
+        
+        if sender_number not in phone_numbers:
+            AfricasTalking().send(
+                parsed_dict["to"][0],
+                """Sorry, your number is not registered in our system. Kindly reach out to us at info@connectedai.net
+                if you want your number to be registered on our system.""",
+                [sender_number],
+            )
+            return {"message": "Number not registered"}
+        
         result = db.get_short_code(parsed_dict["to"][0])
         if result and parsed_dict["text"][0]:
             vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
@@ -242,17 +260,37 @@ def get_areas():
     return areas
 
 
+# @app.get("/numbers")
+# async def get_numbers():
+#     try:
+#         phone_numbers = db.get_phone_numbers()
+#         return {"numbers": phone_numbers}
+#     except HTTPException as e:
+#         raise e
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 @app.post("/add_numbers_to_area")
 async def add_numbers_to_area(area_and_numbers: AreaAndNumbers):
     if db.insert_new_number(area_and_numbers.area_name, area_and_numbers.numbers):
         return {"message": f"Numbers added to area '{area_and_numbers.area_name}' successfully"}
     else:
         raise HTTPException(status_code=500, detail="Failed to add numbers to the database")
+    
+    
+@app.post("/add_area")
+async def add_area(area: Area):
+    if db.add_area(area.name, area.numbers):
+        return {"message": f"Area '{area.name}' added successfully with numbers: {area.numbers}"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to add area to the database")
 
 
-@app.post("/test")
-async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
-    return {"answer": file.filename, "orgn": organization}
+# @app.post("/test")
+# async def receive_sms(file: UploadFile, organization: Annotated[str, Form()]):
+#     return {"answer": file.filename, "orgn": organization}
 
 
 # @app.get("/initdb")
