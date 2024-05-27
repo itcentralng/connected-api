@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import africastalking
+from fastapi import HTTPException
 
 load_dotenv()
 
@@ -15,8 +16,7 @@ class AfricasTalking:
 
     def send(self, sender, message, recipients):
         try:
-            response = self.sms.send(message, [recipients], sender)
-            print(response)
+            response = self.sms.send(message, recipients, sender)
         except Exception as e:
-            # print(recipients)
             print(f"Houston, we have a problem: {e}")
+            raise HTTPException(status_code=500, detail="Failed to send message")
