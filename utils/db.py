@@ -432,19 +432,24 @@ def get_phone_numbers():
     try:
         cursor.execute("SELECT numbers FROM areas")
         results = cursor.fetchall()
-        conn.commit()
     except Exception as e:
         conn.close()
-        raise HTTPException(status_code=500, detail=str(e))
-
+        raise HTTPException(status_code=500, detail=f"Database query failed: {str(e)}")
+    
     conn.close()
+
+    if not results:
+        raise HTTPException(status_code=500, detail="No phone numbers found")
 
     # Extract and flatten the phone numbers from the results
     phone_numbers = []
-    for row in results:
-        numbers = row['numbers'].split(", ")
-        cleaned_numbers = [number.strip() for number in numbers]
-        phone_numbers.extend(cleaned_numbers)
+    try:
+        for row in results:
+            numbers = row['numbers'].split(", ")
+            cleaned_numbers = [number.strip() for number in numbers]
+            phone_numbers.extend(cleaned_numbers)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing phone numbers: {str(e)}")
 
     return phone_numbers
 

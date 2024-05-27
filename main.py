@@ -228,26 +228,20 @@ async def receive_sms(request: Request):
 @app.post("/{organization}/message/add")
 def add_message(message: Message, organization: str):
     try:
-        # Retrieve phone numbers from the database
-        numbers_data = db.get_phone_numbers()
+        numbers = [row["numbers"].split(",") for row in db.get_areas()]
         all_numbers = []
 
-        # Flatten and clean the list of numbers
-        for row in numbers_data:
-            nums = row["numbers"].split(",")
-            all_numbers.extend(nums)
+        for nums in numbers:
+            all_numbers = [*all_numbers, *nums]
         
-        # Deduplicate and strip whitespace
-        all_numbers = list(set(number.strip() for number in all_numbers))
-        
-        # Send the message via AfricasTalking
-        AfricasTalking().send(message.shortcode, message.content, all_numbers)
+        AfricasTalking().send(message.shortcode, message.content, message.areas)
 
-        # Add the message to the database
-        db.add_message(message.content, organization, message.shortcode, message.areas)
+        db.add_message(
+            message.content, organization, message.shortcode, message.areas
+        )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to send message")
 
 
 @app.get("/{organization}/messages/")
@@ -265,15 +259,15 @@ def get_areas():
     return areas
 
 
-@app.get("/numbers")
-async def get_numbers():
-    try:
-        phone_numbers = db.get_phone_numbers()
-        return {"numbers": phone_numbers}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.get("/numbers")
+# async def get_numbers():
+#     try:
+#         phone_numbers = db.get_phone_numbers()
+#         return {"numbers": phone_numbers}
+#     except HTTPException as e:
+#         raise e
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 
