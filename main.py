@@ -197,8 +197,7 @@ async def receive_sms(request: Request):
         if sender_number not in phone_numbers:
             AfricasTalking().send(
                 parsed_dict["to"][0],
-                """Sorry, your number is not registered in our system. Kindly reach out to us at info@connectedai.net
-                if you want your number to be registered on our system.""",
+                """Sorry, your number is not registered in our system. Kindly reach out to us at info@connectedai.net if you want your number to be registered on our system.""",
                 [sender_number],
             )
             return {"message": "Number not registered"}
