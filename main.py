@@ -198,10 +198,10 @@ async def receive_sms(request: Request):
         parsed_dict = urllib.parse.parse_qs(decoded_string.decode("utf-8"))
         chat_history = []
         
-        phone_numbers = db.get_phone_numbers()
+        # phone_numbers = db.get_phone_numbers()
         sender_number = parsed_dict["from"][0] 
         
-        if sender_number not in phone_numbers:
+        if not db.confirm_phone_number(sender_number):
             AfricasTalking().send(
                 parsed_dict["to"][0],
                 """Sorry, your number is not registered in our system. Kindly reach out to us at info@connectedai.net if you want your number to be registered on our system.""",

@@ -490,6 +490,21 @@ def get_phone_numbers():
 
     return phone_numbers
 
+
+def confirm_phone_number(phone_number):
+    conn = create_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT numbers FROM areas WHERE numbers=%s", (phone_number,))
+        result = cursor.fetchone()
+        conn.close()
+        return result
+    except Exception as e:
+        conn.close()
+        return
+
+
 def delete_number(area_name, number):
     conn = create_connection()
     cursor = conn.cursor()
