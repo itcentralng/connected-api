@@ -4,12 +4,14 @@ from pydantic import BaseModel
 from typing import Annotated
 from fastapi import FastAPI, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.llms.cohere import Cohere
+# from langchain.llms.cohere import Cohere
 from langchain.document_loaders import PyPDFLoader
 from dotenv import load_dotenv
 import shutil
 import weaviate
 from langchain.vectorstores import Weaviate
+from langchain.chat_models import ChatOpenAI
+from langchain.embeddings.openai import OpenAIEmbeddings
 from utils.weaviate import wv_upload_doc, wv_create_class
 from utils.weaviate import ask_question
 from utils import db
@@ -27,8 +29,9 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:5173",
-    "*",
+    # "*",
     "https://www.connectedai.net",
+    "https://connectedai.net",
 ]
 
 app.add_middleware(
@@ -42,7 +45,7 @@ app.add_middleware(
 wv_client = weaviate.Client(
     url=os.environ.get("WEAVIATE_URL"),
     auth_client_secret=weaviate.AuthApiKey(api_key=os.environ.get("WEAVIATE_API_KEY")),
-    additional_headers={"X-Cohere-Api-Key": os.environ.get("COHERE_API_KEY")},
+    additional_headers={"X-OpenAI-Api-Key": os.environ.get("OPENAI_API_KEY")},  # Change this line
 )
 
 class LoginOrganization(BaseModel):
@@ -52,10 +55,9 @@ class LoginOrganization(BaseModel):
 class Organization(BaseModel):
     name: str
     email: str
-    password: str
     address: str
-    description: str
     password: str
+    description: str
 
 class ShortCode(BaseModel):
     short_code: int
@@ -211,10 +213,17 @@ async def receive_sms(request: Request):
         
         result = db.get_short_code(parsed_dict["to"][0])
         if result and parsed_dict["text"][0]:
-            vectorstore = Weaviate(wv_client, result["weaviate_class"], "content")
+            vectorstore = Weaviate(
+                    wv_client, 
+                    result["weaviate_class"], 
+                    "content", 
+                    embedding=OpenAIEmbeddings()
+                )
+
             answer = ask_question(
                 vectorstore,
-                Cohere(temperature=0), 
+                # Cohere(temperature=0),
+                ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo"),
                 parsed_dict["text"][0],
                 chat_history,
             )

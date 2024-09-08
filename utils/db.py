@@ -20,8 +20,12 @@ def create_connection():
             cursor_factory=psycopg2.extras.RealDictCursor,  # Return rows as dictionaries
 
         )
+        # cursor = conn.cursor()
+        # print("Database connection established")
         return conn
     except Exception as e:
+        # print("Database connection not established")
+        print (e)
         raise HTTPException(status_code=500, detail=(str(e)))
 
 
